@@ -151,7 +151,7 @@ fun TvApp() {
             else -> {
                 // Tekan Back dua kali (< 2500 ms) untuk memunculkan dialog keluar.
                 // Berlaku di semua tab, bukan hanya Beranda.
-                focusContent()
+                if (tab == TvTab.HOME) focusContent()
                 val now = SystemClock.uptimeMillis()
                 Log.d("TvAppBack", "tab=$tab delta=${now - lastBackAt}")
                 if (now - lastBackAt < 2500L) {
