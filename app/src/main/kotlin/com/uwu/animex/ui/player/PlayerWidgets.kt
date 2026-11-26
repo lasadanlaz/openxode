@@ -7,8 +7,11 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,7 +63,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -69,6 +75,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlinx.coroutines.delay
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
@@ -94,13 +101,32 @@ import com.uwu.animex.ui.discussion.ThreadState
 import com.uwu.animex.ui.viewmodel.DiscussionViewModel
 import com.uwu.animex.ui.viewmodel.PlayerViewModel
 
+
+@Composable
+internal fun Modifier.playerFocusRing(
+    interactionSource: MutableInteractionSource,
+    enabled: Boolean = true,
+    shape: Shape = RoundedCornerShape(50),
+): Modifier {
+    val focused by interactionSource.collectIsFocusedAsState()
+    return if (enabled && focused) this.border(2.dp, Color.White, shape) else this
+}
+
 @Composable
 internal fun OverlayButton(
     onClick: () -> Unit,
+    focusRequester: FocusRequester? = null,
     content: @Composable () -> Unit,
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    LaunchedEffect(focusRequester) { runCatching { focusRequester?.requestFocus() } }
     FilledIconButton(
         onClick = hapticClick(block = onClick),
+        interactionSource = interaction,
+        modifier =
+            Modifier
+                .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+                .playerFocusRing(interaction),
         shapes = IconButtonDefaults.shapes(),
         colors =
             IconButtonDefaults.filledIconButtonColors(
@@ -182,6 +208,7 @@ internal fun EpisodePanel(
     viewModel: PlayerViewModel,
     onPick: (Episode) -> Unit,
     onDismiss: () -> Unit,
+    tvMode: Boolean = false,
 ) {
     LaunchedEffect(movieId, currentIndex) {
         viewModel.openEpisodeList(movieId, currentIndex)
@@ -210,6 +237,7 @@ internal fun EpisodePanel(
             }
         }
     val listState = rememberLazyListState()
+    val episodeFocus = remember { FocusRequester() }
     val nearEnd by remember {
         derivedStateOf {
             val info = listState.layoutInfo
@@ -230,6 +258,11 @@ internal fun EpisodePanel(
             scrolledToCurrent = true
             if (i > 0) listState.scrollToItem(i)
         }
+    }
+    LaunchedEffect(tvMode, episodes.size, currentEpId) {
+        if (!tvMode || episodes.isEmpty()) return@LaunchedEffect
+        delay(80L)
+        runCatching { episodeFocus.requestFocus() }
     }
     Box(
         Modifier
@@ -271,6 +304,7 @@ internal fun EpisodePanel(
                     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                         itemsIndexed(episodes, key = { i, e -> e.id ?: "i$i" }) { _, ep ->
                             val current = ep.id == currentEpId
+                            val interaction = remember { MutableInteractionSource() }
                             val thumb =
                                 remember(ep.image, fallbackImage, domain) {
                                     Api.absUrl(ep.image?.takeIf { it.isNotBlank() } ?: fallbackImage)
@@ -279,10 +313,23 @@ internal fun EpisodePanel(
                                 Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 8.dp, vertical = 2.dp)
+                                    .then(
+                                        if (current) {
+                                            Modifier.focusRequester(episodeFocus)
+                                        } else {
+                                            Modifier
+                                        },
+                                    )
                                     .background(
                                         if (current) Color(0x33FFFFFF) else Color.Transparent,
                                         RoundedCornerShape(12.dp),
-                                    ).clickable(onClick = hapticClick { onPick(ep) })
+                                    )
+                                    .clickable(
+                                        interactionSource = interaction,
+                                        indication = null,
+                                        onClick = hapticClick { onPick(ep) },
+                                    )
+                                    .playerFocusRing(interaction, shape = RoundedCornerShape(12.dp))
                                     .padding(horizontal = 12.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),

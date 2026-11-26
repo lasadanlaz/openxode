@@ -893,6 +893,7 @@ fun PlayerScreen(
                 onOpenSleep = { showSleep = true },
                 compact = !fullscreen,
                 minimized = isMinimizedVisual,
+                tvMode = tvMode,
                 onToggleFullscreen = { toggleFullscreen() },
                 onPullDownDelta =
                     if (supportsMiniPlayer && !fullscreen) {
@@ -1677,6 +1678,7 @@ fun PlayerScreen(
                         switchTo(it, false)
                     },
                     onDismiss = { showEpisodes = false },
+                    tvMode = tvMode,
                 )
             }
         }
@@ -1707,6 +1709,7 @@ fun PlayerScreen(
             visible = showSpeed && fullscreen,
             speed = speed,
             onDismiss = { showSpeed = false },
+            tvMode = tvMode,
         ) { s ->
             showSpeed = false
             speed = s
@@ -1718,6 +1721,7 @@ fun PlayerScreen(
             nowMs = sleepNow,
             afterEpisode = sleepAfterEpisode,
             onDismiss = { showSleep = false },
+            tvMode = tvMode,
         ) { deadlineMs, afterEpisode, message ->
             showSleep = false
             sleepDeadlineMs = deadlineMs
@@ -1737,6 +1741,7 @@ fun PlayerScreen(
                     selected = resolveSel(servers),
                     onDismiss = { showDialog = false },
                     onSelect = pickServer,
+                    tvMode = tvMode,
                 )
             }
         }

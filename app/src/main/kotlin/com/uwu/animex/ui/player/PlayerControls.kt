@@ -14,6 +14,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
@@ -40,6 +43,7 @@ import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.AspectRatio
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.BrightnessMedium
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.FastForward
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Forward10
@@ -82,6 +86,14 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -202,6 +214,7 @@ fun PlayerChrome(
     onOpenSleep: () -> Unit = {},
     compact: Boolean = false,
     minimized: Boolean = false,
+    tvMode: Boolean = false,
     onToggleFullscreen: () -> Unit = {},
     onPullDownDelta: ((Float) -> Unit)? = null,
     onPullDownEnd: ((Boolean) -> Unit)? = null,
@@ -242,6 +255,10 @@ fun PlayerChrome(
     val autoSkipRecap by PlayerPrefs.autoSkipRecap.collectAsStateWithLifecycle()
     var visible by remember { mutableStateOf(true) }
     var poke by remember { mutableIntStateOf(0) }
+    val tvRootFocus = remember { FocusRequester() }
+    val tvPlayFocus = remember { FocusRequester() }
+    val tvPlayInteraction = remember { MutableInteractionSource() }
+    var tvControlFocused by remember { mutableStateOf(false) }
     val pillScroll = rememberScrollState()
     var sleepNow by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
 
@@ -296,6 +313,10 @@ fun PlayerChrome(
 
     LaunchedEffect(minimized) {
         if (minimized) visible = false
+    }
+
+    LaunchedEffect(tvMode, minimized, epId) {
+        if (tvMode && !minimized) runCatching { tvRootFocus.requestFocus() }
     }
 
     LaunchedEffect(sleepDeadlineMs) {
@@ -513,13 +534,24 @@ fun PlayerChrome(
         player.setPlaybackSpeed(if (holding) HOLD_SPEED else speed)
     }
 
-    LaunchedEffect(visible, poke, isPlaying, scrubPos != null, locked, minimized, PlayerPrefs.controlsTimeoutMs.value) {
-        if (visible && !minimized && isPlaying && scrubPos == null && !locked) {
+    LaunchedEffect(
+        visible,
+        poke,
+        isPlaying,
+        scrubPos != null,
+        locked,
+        minimized,
+        PlayerPrefs.controlsTimeoutMs.value,
+        tvMode,
+        tvControlFocused,
+    ) {
+        if (visible && !minimized && isPlaying && scrubPos == null && !locked && !(tvMode && tvControlFocused)) {
             val timeout = PlayerPrefs.controlsTimeoutMs.value
                 .toLong()
                 .coerceAtLeast(500L)
             delay(timeout)
             visible = false
+            if (tvMode) runCatching { tvRootFocus.requestFocus() }
         }
     }
 
@@ -753,7 +785,55 @@ fun PlayerChrome(
 
     val controlsShown = visible && !locked
 
-    Box(Modifier.fillMaxSize().then(gestures)) {
+    val tvKeys =
+        if (tvMode && !minimized) {
+            Modifier
+                .focusRequester(tvRootFocus)
+                .focusable()
+                .onKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                    when (event.key) {
+                        Key.DirectionCenter,
+                        Key.Enter,
+                        Key.NumPadEnter,
+                        -> {
+                            if (!controlsShown && !locked) {
+                                visible = true
+                                poke++
+                                runCatching { tvPlayFocus.requestFocus() }
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                        Key.DirectionLeft -> {
+                            if (locked) {
+                                false
+                            } else {
+                                seekBy(-SEEK_STEP_MS)
+                                poke++
+                                showHint("Mundur 10 dtk")
+                                true
+                            }
+                        }
+                        Key.DirectionRight -> {
+                            if (locked) {
+                                false
+                            } else {
+                                seekBy(SEEK_STEP_MS)
+                                poke++
+                                showHint("Maju 10 dtk")
+                                true
+                            }
+                        }
+                        else -> false
+                    }
+                }
+        } else {
+            Modifier
+        }
+
+    Box(Modifier.fillMaxSize().then(gestures).then(tvKeys)) {
         if (buffering && !controlsShown) {
             LoadingIndicator(
                 color = Color.White,
@@ -820,9 +900,15 @@ fun PlayerChrome(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (compact) {
+                        val backInteraction = remember { MutableInteractionSource() }
                         FilledIconButton(
                             onClick = hapticClick(block = onBack),
-                            modifier = Modifier.size(40.dp),
+                            interactionSource = backInteraction,
+                            modifier =
+                                Modifier
+                                    .size(40.dp)
+                                    .playerFocusRing(backInteraction)
+                                    .onFocusChanged { tvControlFocused = it.isFocused },
                             shapes = IconButtonDefaults.shapes(),
                             colors = overlayButtonColors(),
                         ) {
@@ -896,13 +982,19 @@ fun PlayerChrome(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (!compact) {
+                        val prevInteraction = remember { MutableInteractionSource() }
                         FilledIconButton(
                             onClick = hapticClick {
                                 onPrev()
                                 poke++
                             },
                             enabled = hasPrev,
-                            modifier = Modifier.size(sideBtn),
+                            interactionSource = prevInteraction,
+                            modifier =
+                                Modifier
+                                    .size(sideBtn)
+                                    .playerFocusRing(prevInteraction)
+                                    .onFocusChanged { tvControlFocused = it.isFocused },
                             shapes = IconButtonDefaults.shapes(),
                             colors = overlayButtonColors(),
                         ) {
@@ -915,12 +1007,18 @@ fun PlayerChrome(
                         }
                     }
 
+                    val rewindInteraction = remember { MutableInteractionSource() }
                     FilledIconButton(
                         onClick = hapticClick {
                             seekBy(-SEEK_STEP_MS)
                             poke++
                         },
-                        modifier = Modifier.size(sideBtn),
+                        interactionSource = rewindInteraction,
+                        modifier =
+                            Modifier
+                                .size(sideBtn)
+                                .playerFocusRing(rewindInteraction)
+                                .onFocusChanged { tvControlFocused = it.isFocused },
                         shapes = IconButtonDefaults.shapes(),
                         colors = overlayButtonColors(),
                     ) {
@@ -937,7 +1035,13 @@ fun PlayerChrome(
                             togglePlay()
                             poke++
                         },
-                        modifier = Modifier.size(mainBtn),
+                        interactionSource = tvPlayInteraction,
+                        modifier =
+                            Modifier
+                                .focusRequester(tvPlayFocus)
+                                .size(mainBtn)
+                                .playerFocusRing(tvPlayInteraction)
+                                .onFocusChanged { tvControlFocused = it.isFocused },
                         shapes = IconButtonDefaults.shapes(),
                         colors = overlayButtonColors(),
                     ) {
@@ -961,12 +1065,18 @@ fun PlayerChrome(
                         }
                     }
 
+                    val forwardInteraction = remember { MutableInteractionSource() }
                     FilledIconButton(
                         onClick = hapticClick {
                             seekBy(SEEK_STEP_MS)
                             poke++
                         },
-                        modifier = Modifier.size(sideBtn),
+                        interactionSource = forwardInteraction,
+                        modifier =
+                            Modifier
+                                .size(sideBtn)
+                                .playerFocusRing(forwardInteraction)
+                                .onFocusChanged { tvControlFocused = it.isFocused },
                         shapes = IconButtonDefaults.shapes(),
                         colors = overlayButtonColors(),
                     ) {
@@ -979,13 +1089,19 @@ fun PlayerChrome(
                     }
 
                     if (!compact) {
+                        val nextInteraction = remember { MutableInteractionSource() }
                         FilledIconButton(
                             onClick = hapticClick {
                                 onNext()
                                 poke++
                             },
                             enabled = hasNext,
-                            modifier = Modifier.size(sideBtn),
+                            interactionSource = nextInteraction,
+                            modifier =
+                                Modifier
+                                    .size(sideBtn)
+                                    .playerFocusRing(nextInteraction)
+                                    .onFocusChanged { tvControlFocused = it.isFocused },
                             shapes = IconButtonDefaults.shapes(),
                             colors = overlayButtonColors(),
                         ) {
@@ -1037,12 +1153,18 @@ fun PlayerChrome(
                                         .padding(horizontal = 10.dp, vertical = 4.dp),
                             )
                             Spacer(Modifier.weight(1f))
+                            val fullscreenInteraction = remember { MutableInteractionSource() }
                             FilledIconButton(
                                 onClick = hapticClick {
                                     onToggleFullscreen()
                                     poke++
                                 },
-                                modifier = Modifier.size(40.dp),
+                                interactionSource = fullscreenInteraction,
+                                modifier =
+                                    Modifier
+                                        .size(40.dp)
+                                        .playerFocusRing(fullscreenInteraction)
+                                        .onFocusChanged { tvControlFocused = it.isFocused },
                                 shapes = IconButtonDefaults.shapes(),
                                 colors = overlayButtonColors(),
                             ) {
@@ -1165,6 +1287,12 @@ fun PlayerChrome(
                             }
                             if (opVisible) {
                                 PillButton(Icons.Outlined.FastForward, "Lewati OP") { skipOp() }
+                            }
+                            if (tvMode) {
+                                PillButton(Icons.Outlined.Close, "Tutup menu") {
+                                    visible = false
+                                    runCatching { tvRootFocus.requestFocus() }
+                                }
                             }
                         }
                     }
