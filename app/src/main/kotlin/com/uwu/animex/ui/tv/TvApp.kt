@@ -3,6 +3,7 @@
 package com.uwu.animex.ui.tv
 
 import android.app.Activity
+import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -27,7 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -45,7 +46,6 @@ import com.uwu.animex.ui.navigation.NotificationRouter
 import com.uwu.animex.ui.player.MiniPlayerController
 import com.uwu.animex.ui.player.PlayerHost
 import com.uwu.animex.ui.theme.rememberAppDarkTheme
-import kotlinx.coroutines.delay
 
 private val tvRailEntries =
     listOf(
@@ -68,7 +68,7 @@ fun TvApp() {
     var showSearch by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var showExitDialog by remember { mutableStateOf(false) }
-    var backPressCount by remember { mutableIntStateOf(0) }
+    var lastBackAt by remember { mutableLongStateOf(0L) }
     val context = LocalContext.current
     val activity = context as? Activity
     val tabFocus = remember { TvTab.entries.associateWith { FocusRequester() } }
@@ -78,14 +78,8 @@ fun TvApp() {
     val railEnabled = detailId == null && !showSearch && !showSettings && !MiniPlayerController.expanded
 
     LaunchedEffect(tab) {
-        backPressCount = 0
+        lastBackAt = 0L
         showExitDialog = false
-    }
-    LaunchedEffect(backPressCount) {
-        if (backPressCount > 0) {
-            delay(2500)
-            backPressCount = 0
-        }
     }
     LaunchedEffect(showExitDialog) {
         if (showExitDialog) runCatching { exitCancelFocus.requestFocus() }
@@ -131,34 +125,35 @@ fun TvApp() {
             MiniPlayerController.expanded -> MiniPlayerController.minimize()
             showSettings -> {
                 showSettings = false
-                backPressCount = 0
+                lastBackAt = 0L
                 focusContent()
             }
             showSearch -> {
                 showSearch = false
-                backPressCount = 0
+                lastBackAt = 0L
                 focusContent()
             }
             detailId != null -> {
                 detailId = null
-                backPressCount = 0
+                lastBackAt = 0L
                 focusContent()
             }
             tab == TvTab.HOME -> {
                 focusContent()
-                if (backPressCount > 0) {
+                val now = SystemClock.uptimeMillis()
+                if (now - lastBackAt < 2500L) {
                     showExitDialog = true
-                    backPressCount = 0
+                    lastBackAt = 0L
                 } else {
-                    backPressCount = 1
+                    lastBackAt = now
                 }
             }
             railFocused -> {
-                backPressCount = 0
+                lastBackAt = 0L
                 focusContent()
             }
             else -> {
-                backPressCount = 0
+                lastBackAt = 0L
                 activity?.finish()
             }
         }
@@ -183,7 +178,7 @@ fun TvApp() {
                                 showSearch = false
                             }
                             tab = target
-                            backPressCount = 0
+                            lastBackAt = 0L
                             focusContent(target)
                         },
                         onSettings = { showSettings = true },
@@ -262,7 +257,7 @@ fun TvApp() {
             if (showExitDialog) {
                 val dialogColors = LocalTvColors.current
                 AlertDialog(
-                    onDismissRequest = { showExitDialog = false },
+                    onDismissRequest = {},
                     properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
                     title = {
                         Text(
