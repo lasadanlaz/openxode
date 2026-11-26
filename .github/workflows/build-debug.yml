@@ -35,9 +35,12 @@ jobs:
           SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMANAGER" --licenses > /dev/null || true
           "$SDKMANAGER" \
-            "platforms;android-37" \
+            "platforms;android-37.0" \
             "build-tools;36.0.0" \
             "ndk;28.2.13676358"
+          # API 37 is published as android-37.0; AGP still resolves compileSdk 37
+          # against the android-37 target name.
+          ln -sfn "$SDK_ROOT/platforms/android-37.0" "$SDK_ROOT/platforms/android-37"
           "$SDKMANAGER" "cmake;3.22.1" || true
 
       - name: Set up Gradle 9.6.0
