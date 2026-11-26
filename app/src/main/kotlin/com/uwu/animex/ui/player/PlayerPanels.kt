@@ -7,6 +7,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -39,9 +41,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -130,6 +135,7 @@ internal fun SpeedPanel(
     speed: Float,
     onDismiss: () -> Unit,
     onSelect: (Float) -> Unit,
+    tvMode: Boolean = false,
 ) {
     AnimatedVisibility(
         visible = visible,
@@ -141,6 +147,7 @@ internal fun SpeedPanel(
             options = speedChoices().map(::speedLabel),
             selected = speedChoices().indexOf(speed),
             onDismiss = onDismiss,
+            tvMode = tvMode,
         ) { index ->
             onSelect(speedChoices()[index])
         }
@@ -155,6 +162,7 @@ internal fun SleepTimerPanel(
     afterEpisode: Boolean,
     onDismiss: () -> Unit,
     onSelect: (deadlineMs: Long, afterEpisode: Boolean, message: String) -> Unit,
+    tvMode: Boolean = false,
 ) {
     AnimatedVisibility(
         visible = visible,
@@ -166,6 +174,7 @@ internal fun SleepTimerPanel(
             options = SLEEP_OPTIONS,
             selected = sleepSelectedIndex(deadlineMs, nowMs, afterEpisode),
             onDismiss = onDismiss,
+            tvMode = tvMode,
         ) { index ->
             val choice = sleepSelection(index)
             onSelect(choice.deadlineMs, choice.afterEpisode, choice.message)
@@ -187,12 +196,17 @@ internal fun PillButton(
     icon: ImageVector,
     label: String,
     onClick: () -> Unit,
+    focusRequester: FocusRequester? = null,
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    LaunchedEffect(focusRequester) { runCatching { focusRequester?.requestFocus() } }
     Row(
         Modifier
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
             .clip(RoundedCornerShape(50))
-            .background(Color(0x66000000))
-            .clickable(onClick = hapticClick(block = onClick))
+            .background(if (focused) Color(0x99FFFFFF) else Color(0x66000000))
+            .clickable(interactionSource = interaction, indication = null, onClick = hapticClick(block = onClick))
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -303,7 +317,15 @@ internal fun PlayerOptionPanel(
     selected: Int,
     onDismiss: () -> Unit,
     onSelect: (Int) -> Unit,
+    tvMode: Boolean = false,
 ) {
+    val optionFocus = remember { FocusRequester() }
+    val closeInteraction = remember { MutableInteractionSource() }
+    LaunchedEffect(tvMode, options.size, selected) {
+        if (!tvMode || options.isEmpty()) return@LaunchedEffect
+        delay(80L)
+        runCatching { optionFocus.requestFocus() }
+    }
     Box(
         Modifier
             .fillMaxSize()
@@ -328,28 +350,46 @@ internal fun PlayerOptionPanel(
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                 )
-                IconButton(onClick = hapticClick(block = onDismiss), shapes = IconButtonDefaults.shapes()) {
+                IconButton(
+                    onClick = hapticClick(block = onDismiss),
+                    interactionSource = closeInteraction,
+                    modifier = Modifier.playerFocusRing(closeInteraction),
+                    shapes = IconButtonDefaults.shapes(),
+                ) {
                     Icon(Icons.Outlined.Close, contentDescription = "Tutup", tint = Color.White)
                 }
             }
             LazyColumn(Modifier.fillMaxSize()) {
                 itemsIndexed(options) { i, label ->
                     val current = i == selected
+                    val interaction = remember { MutableInteractionSource() }
+                    val focused by interaction.collectIsFocusedAsState()
                     Row(
                         Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 8.dp, vertical = 2.dp)
+                            .then(if (current) Modifier.focusRequester(optionFocus) else Modifier)
                             .background(
-                                if (current) Color(0x33FFFFFF) else Color.Transparent,
+                                when {
+                                    focused -> Color(0x66FFFFFF)
+                                    current -> Color(0x33FFFFFF)
+                                    else -> Color.Transparent
+                                },
                                 RoundedCornerShape(12.dp),
-                            ).clickable(onClick = hapticClick { onSelect(i) })
+                            )
+                            .clickable(
+                                interactionSource = interaction,
+                                indication = null,
+                                onClick = hapticClick { onSelect(i) },
+                            )
+                            .playerFocusRing(interaction, shape = RoundedCornerShape(12.dp))
                             .padding(horizontal = 12.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         Text(
                             label,
-                            color = Color.White,
+                            color = if (focused) Color.Black else Color.White,
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.weight(1f),
                         )
