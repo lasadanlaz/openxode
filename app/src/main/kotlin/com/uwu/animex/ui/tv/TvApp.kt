@@ -10,7 +10,6 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DateRange
@@ -123,11 +122,7 @@ fun TvApp() {
         Box(Modifier.fillMaxSize().background(LocalTvColors.current.Background)) {
             TvBackdrop(style = backdrop)
 
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .padding(start = if (railFocused) TvDimens.ContentStartExpanded - TvDimens.ContentStart else 0.dp),
-            ) {
+            Box(Modifier.fillMaxSize()) {
                 // Tiny focus anchor at the content edge. Keeps LEFT navigation able to
                 // reach the rail (a full-screen focusable Box would overlap it and trap focus).
                 Box(
