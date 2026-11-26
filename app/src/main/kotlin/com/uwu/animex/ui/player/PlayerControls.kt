@@ -43,6 +43,7 @@ import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.AspectRatio
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.BrightnessMedium
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.FastForward
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Forward10
@@ -1286,6 +1287,12 @@ fun PlayerChrome(
                             }
                             if (opVisible) {
                                 PillButton(Icons.Outlined.FastForward, "Lewati OP") { skipOp() }
+                            }
+                            if (tvMode) {
+                                PillButton(Icons.Outlined.Close, "Tutup menu") {
+                                    visible = false
+                                    runCatching { tvRootFocus.requestFocus() }
+                                }
                             }
                         }
                     }
