@@ -76,9 +76,6 @@ object PlayerPrefs {
     private val _volumeValue = MutableStateFlow(-1)
     val volumeValue: StateFlow<Int> = _volumeValue.asStateFlow()
 
-    private val _enablePip = MutableStateFlow(true)
-    val enablePip: StateFlow<Boolean> = _enablePip.asStateFlow()
-
     private val _autoplayEnabled = MutableStateFlow(true)
     val autoplayEnabled: StateFlow<Boolean> = _autoplayEnabled.asStateFlow()
 
@@ -179,7 +176,6 @@ object PlayerPrefs {
             }
         _brightnessValue.value = sp.getFloat(PrefKeys.Player.BRIGHTNESS_VALUE, -1f)
         _volumeValue.value = sp.getInt(PrefKeys.Player.VOLUME_VALUE, -1)
-        _enablePip.value = sp.getBoolean(PrefKeys.Player.ENABLE_PIP, true)
 
         _autoplayEnabled.value = sp.getBoolean(PrefKeys.Player.AUTOPLAY, true)
         _controlsTimeoutMs.value = sp.getInt(PrefKeys.Player.CONTROLS_TIMEOUT, 4_000)
@@ -261,11 +257,6 @@ object PlayerPrefs {
     fun setVolumeValue(value: Int) {
         _volumeValue.value = value
         edit { putInt(PrefKeys.Player.VOLUME_VALUE, value) }
-    }
-
-    fun setEnablePip(value: Boolean) {
-        _enablePip.value = value
-        edit { putBoolean(PrefKeys.Player.ENABLE_PIP, value) }
     }
 
     fun setAutoplayEnabled(value: Boolean) {
@@ -395,7 +386,6 @@ object PlayerPrefs {
             .put("orientation", _defaultOrientation.value.name)
             .put("showLoadingCircle", _showLoadingCircle.value)
             .put("rememberLevels", _rememberLevels.value)
-            .put("enablePip", _enablePip.value)
             .put("autoplay", _autoplayEnabled.value)
             .put("controlsTimeoutMs", _controlsTimeoutMs.value)
             .put("displayVolPer", _displayVolPer.value)
@@ -436,7 +426,6 @@ object PlayerPrefs {
         PlayerOrientation.entries.firstOrNull { it.name == o.optString("orientation") }?.let(::setDefaultOrientation)
         if (o.has("showLoadingCircle")) setShowLoadingCircle(o.optBoolean("showLoadingCircle"))
         if (o.has("rememberLevels")) setRememberLevels(o.optBoolean("rememberLevels"))
-        if (o.has("enablePip")) setEnablePip(o.optBoolean("enablePip"))
         if (o.has("autoplay")) setAutoplayEnabled(o.optBoolean("autoplay"))
         if (o.has("controlsTimeoutMs")) {
             setControlsTimeoutMs(o.optInt("controlsTimeoutMs", _controlsTimeoutMs.value).coerceIn(2_000, 10_000))

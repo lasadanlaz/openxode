@@ -107,7 +107,6 @@ import com.uwu.animex.ui.common.AppMotion
 import com.uwu.animex.ui.common.hapticClick
 import com.uwu.animex.ui.common.label
 import com.uwu.animex.ui.common.rememberStableHapticAction
-import com.uwu.animex.ui.player.PipHelper
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -232,7 +231,6 @@ fun PlayerChrome(
     val hiddenButtons by PlayerPrefs.hiddenButtons.collectAsStateWithLifecycle()
     val gesturesEnabled by PlayerPrefs.gesturesEnabled.collectAsStateWithLifecycle()
     val autoplayEnabled by PlayerPrefs.autoplayEnabled.collectAsStateWithLifecycle()
-    val inPip by PipHelper.inPip.collectAsStateWithLifecycle()
     val invertDuration by PlayerPrefs.invertDuration.collectAsStateWithLifecycle()
     val reduceMotion by PlayerPrefs.reduceMotion.collectAsStateWithLifecycle()
     val swapVolBright by PlayerPrefs.swapVolumeBrightness.collectAsStateWithLifecycle()
@@ -455,8 +453,6 @@ fun PlayerChrome(
             )
         }
     }
-
-    LaunchedEffect(isPlaying) { PipHelper.isPlaying = isPlaying }
 
     LaunchedEffect(ended) { if (ended && !minimized) visible = true }
     LaunchedEffect(playWhenReady) { if (!playWhenReady && !minimized) visible = true }
@@ -755,17 +751,17 @@ fun PlayerChrome(
                 }
         }
 
-    val controlsShown = visible && !locked && !inPip
+    val controlsShown = visible && !locked
 
     Box(Modifier.fillMaxSize().then(gestures)) {
         if (buffering && !controlsShown) {
             LoadingIndicator(
                 color = Color.White,
-                modifier = Modifier.align(Alignment.Center).size(if (compact || inPip) 36.dp else 48.dp),
+                modifier = Modifier.align(Alignment.Center).size(if (compact) 36.dp else 48.dp),
             )
         }
 
-        if (compact && !controlsShown && !inPip && dur > 0) {
+        if (compact && !controlsShown && dur > 0) {
             val playedFrac = ((scrubPos ?: pos).toFloat() / dur).coerceIn(0f, 1f)
             val bufferedFrac = (buffered.toFloat() / dur).coerceIn(0f, 1f)
             Box(

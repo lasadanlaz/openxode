@@ -59,7 +59,6 @@ import com.uwu.animex.data.local.PlayerPrefs
 import com.uwu.animex.data.local.Progress
 import com.uwu.animex.service.PlaybackService
 import com.uwu.animex.service.PlaybackSessions
-import com.uwu.animex.ui.player.PipHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -316,20 +315,13 @@ internal fun ExoView(
         val observer =
             LifecycleEventObserver { _, event ->
                 when (event) {
-                    Lifecycle.Event.ON_STOP -> if (!PipHelper.inPip.value) player.onAppBackgrounded(backgroundPlay)
+                    Lifecycle.Event.ON_STOP -> player.onAppBackgrounded(backgroundPlay)
                     Lifecycle.Event.ON_START -> player.setVideoDisabled(false)
                     else -> Unit
                 }
             }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-    LaunchedEffect(player, lifecycleOwner, backgroundPlay) {
-        PipHelper.inPip.collect { inPip ->
-            if (!inPip && !lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-                player.onAppBackgrounded(backgroundPlay)
-            }
-        }
     }
     DisposableEffect(player) {
         if (reusing) return@DisposableEffect onDispose { }

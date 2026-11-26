@@ -85,26 +85,6 @@ data class EpisodeAlertEntity(
 )
 
 @Entity(
-    tableName = "cuplix_watched",
-    indices = [Index(value = ["watchedAt"])],
-)
-data class CuplixWatchedEntity(
-    @PrimaryKey val clipKey: String,
-    val clipJson: String? = null,
-    @ColumnInfo(defaultValue = "0") val watchedAt: Long = System.currentTimeMillis(),
-)
-
-@Entity(
-    tableName = "cuplix_saved",
-    indices = [Index(value = ["savedAt"])],
-)
-data class CuplixSavedEntity(
-    @PrimaryKey val clipKey: String,
-    val clipJson: String,
-    @ColumnInfo(defaultValue = "0") val savedAt: Long = System.currentTimeMillis(),
-)
-
-@Entity(
     tableName = "watched_discussions",
     indices = [Index(value = ["updatedAt"])],
 )

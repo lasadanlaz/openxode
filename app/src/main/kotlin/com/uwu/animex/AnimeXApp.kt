@@ -16,7 +16,6 @@ import com.uwu.animex.data.api.AniZip
 import com.uwu.animex.data.api.Api
 import com.uwu.animex.data.api.Translator
 import com.uwu.animex.data.local.Bookmarks
-import com.uwu.animex.data.local.CuplixPrefs
 import com.uwu.animex.data.local.EpisodeAlerts
 import com.uwu.animex.data.local.History
 import com.uwu.animex.data.local.PlayerPrefs
@@ -43,7 +42,6 @@ class AnimeXApp :
         AccountManager.init(this)
         UserSession.init(this)
         SyncSourcePref.init(this)
-        CuplixPrefs.init(this)
         PlayerPrefs.init(this)
         AniZip.init(this)
         Translator.init(this)

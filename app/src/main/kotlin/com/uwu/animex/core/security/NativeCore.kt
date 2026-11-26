@@ -35,17 +35,6 @@ object NativeCore {
     const val COMMENT_ACTION = 27
     const val REPLY_LIST = 28
     const val REPLY_POST = 29
-    const val HOME_CUPLIX = 30
-    const val FYP_SCROLL = 31
-    const val FYP_VIEW = 32
-    const val FYP_LIKE = 33
-    const val FYP_SERVER = 34
-    const val FYP_COMMENT_LIST = 35
-    const val FYP_COMMENT_POST = 36
-    const val FYP_COMMENT_DELETE = 37
-    const val FYP_COMMENT_EDIT = 38
-    const val FYP_COMMENT_REPORT = 39
-
     init {
         System.loadLibrary("animexcore")
     }

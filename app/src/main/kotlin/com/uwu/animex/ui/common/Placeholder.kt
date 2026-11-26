@@ -39,7 +39,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.eygraber.compose.placeholder.PlaceholderHighlight
 import com.eygraber.compose.placeholder.material3.fade
 import com.eygraber.compose.placeholder.material3.placeholder
-import com.uwu.animex.data.local.CuplixPrefs
 import com.uwu.animex.data.local.HomeSection
 import com.uwu.animex.data.local.HomeSectionPrefs
 
@@ -314,36 +313,6 @@ fun WaitingCardPlaceholder(modifier: Modifier = Modifier) {
 }
 
 @Composable
-internal fun CuplixCardPlaceholder(modifier: Modifier = Modifier) {
-    Column(
-        modifier
-            .clip(RoundedCornerShape(22.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .padding(8.dp),
-    ) {
-        Ph(Modifier.fillMaxWidth().aspectRatio(CUPLIX_POSTER_RATIO), RoundedCornerShape(16.dp))
-        Column(
-            Modifier.padding(start = 3.dp, top = 8.dp, bottom = 2.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            PhLine(fraction = 0.8f, style = MaterialTheme.typography.labelMedium)
-        }
-    }
-}
-
-@Composable
-private fun CuplixRowPlaceholder() {
-    val scale = rememberHomeCardScale()
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        userScrollEnabled = false,
-    ) {
-        items(3) { CuplixCardPlaceholder(Modifier.width(154.dp * scale)) }
-    }
-}
-
-@Composable
 private fun HotRowPlaceholder() {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
@@ -398,15 +367,10 @@ private fun WaitingRowPlaceholder() {
 @Composable
 fun HomePlaceholder() {
     val layout by HomeSectionPrefs.layout.collectAsStateWithLifecycle()
-    val cuplixEnabled by CuplixPrefs.enabled.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize().clipToBounds().padding(top = 16.dp + LocalTopInset.current)) {
         HeroBannerPlaceholder()
         layout.order.forEach { section ->
             when (section) {
-                HomeSection.Cuplix -> if (cuplixEnabled) {
-                    SectionHeaderPlaceholder()
-                    CuplixRowPlaceholder()
-                }
                 HomeSection.ContinueWatching -> {
                     SectionHeaderPlaceholder()
                     ContinueRowPlaceholder()

@@ -53,8 +53,6 @@
             android:theme="@style/Theme.App.Starting"
             android:launchMode="singleTop"
             android:screenOrientation="landscape"
-            android:supportsPictureInPicture="true"
-            android:resizeableActivity="true"
             android:windowSoftInputMode="adjustResize"
             android:exported="true">
             <intent-filter>

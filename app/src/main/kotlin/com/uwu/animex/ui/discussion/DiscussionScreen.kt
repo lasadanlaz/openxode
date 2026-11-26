@@ -106,7 +106,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.uwu.animex.data.local.Appearance
 import com.uwu.animex.data.user.UserApi
 import com.uwu.animex.data.user.UserSession
-import com.uwu.animex.ui.background.screenContainerColor
 import com.uwu.animex.ui.common.AnimatedEmptyState
 import com.uwu.animex.ui.common.AppDialog
 import com.uwu.animex.ui.common.AppLoadingIndicator
@@ -330,7 +329,7 @@ fun DiscussionScreen(
     }
 
     Scaffold(
-        containerColor = screenContainerColor(),
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             FloatingTopBar(
                 backdrop = backdrop,
