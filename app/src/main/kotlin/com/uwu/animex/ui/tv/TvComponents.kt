@@ -2,7 +2,6 @@
 
 package com.uwu.animex.ui.tv
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -53,9 +52,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -755,58 +751,6 @@ fun TvBackChip(
             tint = if (focused) TvColors.OnAccentContainer else TvColors.Text,
             modifier = Modifier.size(20.dp),
         )
-    }
-}
-
-@Composable
-fun TvCaption(text: String) {
-    Box(
-        Modifier
-            .clip(RoundedCornerShape(50))
-            .background(Color.Black.copy(alpha = 0.72f))
-            .padding(horizontal = 18.dp, vertical = 9.dp),
-    ) {
-        Text(text, color = Color.White.copy(alpha = 0.92f), fontSize = 13.sp, maxLines = 1)
-    }
-}
-
-@Composable
-fun TvDpadHint() {
-    Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) {
-            drawCircle(color = Color.White.copy(alpha = 0.16f), style = Stroke(width = 2f))
-            val c = Offset(size.width / 2f, size.height / 2f)
-            val r = size.minDimension * 0.30f
-            val arrow = Path().apply {
-                moveTo(c.x, c.y - r)
-                lineTo(c.x - r * 0.34f, c.y - r * 0.62f)
-                lineTo(c.x + r * 0.34f, c.y - r * 0.62f)
-                close()
-            }
-            drawPath(arrow, Color.White.copy(alpha = 0.55f))
-            val down = Path().apply {
-                moveTo(c.x, c.y + r)
-                lineTo(c.x - r * 0.34f, c.y + r * 0.62f)
-                lineTo(c.x + r * 0.34f, c.y + r * 0.62f)
-                close()
-            }
-            drawPath(down, Color.White.copy(alpha = 0.55f))
-            drawLine(
-                Color.White.copy(alpha = 0.55f),
-                Offset(c.x - r, c.y),
-                Offset(c.x - r * 0.62f, c.y - r * 0.34f),
-                strokeWidth = 2f,
-                cap = StrokeCap.Round,
-            )
-            drawLine(
-                Color.White.copy(alpha = 0.55f),
-                Offset(c.x + r, c.y),
-                Offset(c.x + r * 0.62f, c.y + r * 0.34f),
-                strokeWidth = 2f,
-                cap = StrokeCap.Round,
-            )
-        }
-        Text("OK", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
     }
 }
 

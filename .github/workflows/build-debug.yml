@@ -49,6 +49,8 @@ jobs:
           gradle-version: '9.6.0'
 
       - name: Build debug APK
+        env:
+          API_GATE_URL: ${{ secrets.API_GATE_URL }}
         run: gradle --no-daemon assembleDebug --stacktrace
 
       - name: Upload debug APK

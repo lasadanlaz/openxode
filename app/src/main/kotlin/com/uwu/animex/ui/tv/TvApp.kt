@@ -8,7 +8,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.Explore
@@ -26,7 +25,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.uwu.animex.ui.navigation.NotificationRouter
 import com.uwu.animex.ui.player.MiniPlayerController
@@ -130,22 +128,6 @@ fun TvApp() {
             )
         }
 
-        Box(
-            Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 30.dp, bottom = 16.dp),
-        ) {
-            TvCaption(captionFor(tab, detailId, showSettings))
-        }
-
-        Box(
-            Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 28.dp, bottom = 72.dp),
-        ) {
-            TvDpadHint()
-        }
-
         if (showSettings) {
             TvSettingsOverlay(
                 onDismiss = {
@@ -165,19 +147,3 @@ fun TvApp() {
         )
     }
 }
-
-private fun captionFor(
-    tab: TvTab,
-    detailId: String?,
-    settings: Boolean,
-): String =
-    when {
-        settings -> "BACK untuk menutup setelan"
-        detailId != null -> "OK untuk memutar episode · BACK untuk kembali"
-        tab == TvTab.SEARCH -> "Ketik judul, lalu tekan OK untuk mencari"
-        tab == TvTab.HOME -> "Geser ke atas/bawah untuk pindah baris · OK untuk membuka"
-        tab == TvTab.SCHEDULE -> "Pilih hari, lalu pilih anime"
-        tab == TvTab.EXPLORE -> "Pilih kategori untuk menjelajah"
-        tab == TvTab.LIBRARY -> "Pustaka tersimpan di perangkat ini"
-        else -> "OK untuk memilih"
-    }
