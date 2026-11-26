@@ -245,7 +245,7 @@ fun TvRail(
             selected = false,
             expanded = enabled && settingsFocused,
             enabled = enabled,
-            onFocus = { settingsFocused = focused && enabled },
+            onFocus = { focused -> settingsFocused = focused && enabled },
             onClick = { if (enabled) onSettings() },
         )
     }
