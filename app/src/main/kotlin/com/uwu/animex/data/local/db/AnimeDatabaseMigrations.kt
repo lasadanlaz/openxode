@@ -257,8 +257,8 @@ internal object AnimeDatabaseMigrations {
             "ON `watched_comments` (`updatedAt`)"
 
     val all: Array<Migration> =
-        (1..10)
-            .map { from ->
+        (
+            (1..10).map { from ->
                 object : Migration(from, 11) {
                     override fun migrate(db: SupportSQLiteDatabase) {
                         tables.forEach { table -> ensureTableSchema(db, table, forceRebuild = from < 6) }
@@ -269,15 +269,17 @@ internal object AnimeDatabaseMigrations {
                         db.execSQL(WATCHED_COMMENTS_INDEX)
                     }
                 }
-            } + listOf(
-                object : Migration(11, 12) {
-                    override fun migrate(db: SupportSQLiteDatabase) {
-                        db.execSQL("DROP TABLE IF EXISTS `cuplix_watched`")
-                        db.execSQL("DROP TABLE IF EXISTS `cuplix_saved`")
-                        db.execSQL("DROP TABLE IF EXISTS `cuplix_seen`")
-                    }
-                },
-            ).toTypedArray()
+            } +
+                listOf(
+                    object : Migration(11, 12) {
+                        override fun migrate(db: SupportSQLiteDatabase) {
+                            db.execSQL("DROP TABLE IF EXISTS `cuplix_watched`")
+                            db.execSQL("DROP TABLE IF EXISTS `cuplix_saved`")
+                            db.execSQL("DROP TABLE IF EXISTS `cuplix_seen`")
+                        }
+                    },
+                )
+        ).toTypedArray()
 
     private fun ensureTableSchema(
         db: SupportSQLiteDatabase,
