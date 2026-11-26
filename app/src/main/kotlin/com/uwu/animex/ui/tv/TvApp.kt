@@ -36,8 +36,8 @@ import com.uwu.animex.ui.player.PlayerHost
 
 private val tvRailEntries =
     listOf(
-        TvRailEntry(TvTab.SEARCH, "Cari", Icons.Outlined.Search),
         TvRailEntry(TvTab.HOME, "Beranda", Icons.Outlined.Home),
+        TvRailEntry(TvTab.SEARCH, "Cari", Icons.Outlined.Search),
         TvRailEntry(TvTab.SCHEDULE, "Jadwal", Icons.Outlined.DateRange),
         TvRailEntry(TvTab.EXPLORE, "Explore", Icons.Outlined.Explore),
         TvRailEntry(TvTab.LIBRARY, "Pustaka", Icons.Outlined.VideoLibrary),
@@ -52,7 +52,15 @@ fun TvApp() {
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var pairPrefill by remember { mutableStateOf<PairingLink?>(null) }
     val context = LocalContext.current
-    val homeFocus = remember { FocusRequester() }
+    val tabFocus = remember { TvTab.entries.associateWith { FocusRequester() } }
+    fun focusTab(target: TvTab) {
+        tabFocus[target]?.requestFocus()
+    }
+    val initialTab = rememberSaveable { tab }
+    LaunchedEffect(Unit) {
+        tab = initialTab
+        focusTab(initialTab)
+    }
 
     val pendingDetail by NotificationRouter.pendingDetail.collectAsStateWithLifecycle()
     LaunchedEffect(pendingDetail) {
@@ -90,17 +98,15 @@ fun TvApp() {
             MiniPlayerController.expanded -> MiniPlayerController.minimize()
             showSettings -> {
                 showSettings = false
-                homeFocus.requestFocus()
+                pairPrefill = null
+                focusTab(tab)
             }
             detailId != null -> {
                 detailId = null
-                homeFocus.requestFocus()
+                focusTab(tab)
             }
-            tab != TvTab.HOME -> {
-                tab = TvTab.HOME
-                homeFocus.requestFocus()
-            }
-            else -> (context as? Activity)?.finish()
+            railExpanded -> (context as? Activity)?.finish()
+            else -> focusTab(tab)
         }
     }
 
@@ -123,7 +129,7 @@ fun TvApp() {
                     id = id,
                     onBack = {
                         detailId = null
-                        homeFocus.requestFocus()
+                        focusTab(tab)
                     },
                     onOpen = openDetail,
                 )
@@ -142,12 +148,12 @@ fun TvApp() {
             TvRail(
                 entries = tvRailEntries,
                 selected = tab,
-                onSelect = {
-                    detailId = null
-                    tab = it
+                onSelect = { target ->
+                    if (target != tab) detailId = null
+                    tab = target
                 },
                 onSettings = { showSettings = true },
-                homeFocus = homeFocus,
+                focusRequesters = tabFocus,
                 onExpandedChange = { railExpanded = it },
             )
         }
@@ -159,7 +165,7 @@ fun TvApp() {
                 onDismiss = {
                     showSettings = false
                     pairPrefill = null
-                    homeFocus.requestFocus()
+                    focusTab(tab)
                 },
             )
         }

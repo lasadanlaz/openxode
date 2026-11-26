@@ -460,7 +460,7 @@ private fun SettingsPairPage(
                 val malData = AccountManager.authData("mal")
                 val aniData = AccountManager.authData("anilist")
                 if (malData == null && aniData == null) {
-                    result = "Belum ada akun masuk di perangkat ini. Masuk dulu lewat tombol di bawah."
+                    result = "Belum ada akun di perangkat ini. Masuk dulu di HP, lalu kirim lewat pairing."
                 } else {
                     busy = true
                     result = "Mengirim…"
@@ -485,16 +485,6 @@ private fun SettingsPairPage(
                 }
             }
         }
-        TvSettingRow(
-            label = if (malLogged) "MAL sudah masuk" else "Masuk MAL di browser",
-            value = if (malLogged) null else "OAuth",
-            chevron = false,
-        ) { Mal.startLogin(context) }
-        TvSettingRow(
-            label = if (aniLogged) "AniList sudah masuk" else "Masuk AniList di browser",
-            value = if (aniLogged) null else "OAuth",
-            chevron = false,
-        ) { AniList.startLogin(context) }
         result?.let {
             Text(
                 it,

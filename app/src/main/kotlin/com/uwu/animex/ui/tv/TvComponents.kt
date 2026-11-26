@@ -188,7 +188,7 @@ fun TvRail(
     selected: TvTab,
     onSelect: (TvTab) -> Unit,
     onSettings: () -> Unit,
-    homeFocus: FocusRequester? = null,
+    focusRequesters: Map<TvTab, FocusRequester>,
     onExpandedChange: (Boolean) -> Unit = {},
 ) {
     var focusedTab by remember { mutableStateOf<TvTab?>(null) }
@@ -212,22 +212,27 @@ fun TvRail(
                 icon = entry.icon,
                 selected = selected == entry.tab,
                 expanded = expanded,
-                focusRequester = if (entry.tab == TvTab.HOME) homeFocus else null,
+                focusRequester = focusRequesters[entry.tab],
                 onFocus = { focused ->
                     if (focused) {
                         focusedTab = entry.tab
+                        onSelect(entry.tab)
                     } else if (focusedTab == entry.tab) {
                         focusedTab = null
                     }
                 },
-            ) { onSelect(entry.tab) }
+                onClick = { onSelect(entry.tab) },
+            )
         }
         TvRailItem(
             label = "Setelan",
             icon = Icons.Outlined.Settings,
             selected = false,
             expanded = expanded,
-            onFocus = { settingsFocused = it },
+            onFocus = { focused ->
+                settingsFocused = focused
+                if (focused) onSettings()
+            },
             onClick = onSettings,
         )
     }
@@ -458,18 +463,6 @@ fun TvHero(movie: Movie?) {
         if (genres.isNotBlank()) {
             Spacer(Modifier.height(4.dp))
             Text(genres, color = TvColors.Accent, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        movie.synopsis?.takeIf { it.isNotBlank() }?.let { synopsis ->
-            Spacer(Modifier.height(10.dp))
-            Text(
-                synopsis,
-                color = TvColors.Muted,
-                fontSize = 14.sp,
-                lineHeight = 20.sp,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth(0.62f),
-            )
         }
         Spacer(Modifier.height(8.dp))
     }
