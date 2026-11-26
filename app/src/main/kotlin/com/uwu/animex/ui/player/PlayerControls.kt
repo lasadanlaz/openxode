@@ -319,6 +319,10 @@ fun PlayerChrome(
         if (tvMode && !minimized) runCatching { tvRootFocus.requestFocus() }
     }
 
+    LaunchedEffect(tvMode, minimized, visible) {
+        if (tvMode && !minimized && visible) runCatching { tvPlayFocus.requestFocus() }
+    }
+
     LaunchedEffect(sleepDeadlineMs) {
         if (sleepDeadlineMs <= 0L) return@LaunchedEffect
         while (true) {
@@ -800,14 +804,15 @@ fun PlayerChrome(
                             if (!controlsShown && !locked) {
                                 visible = true
                                 poke++
-                                runCatching { tvPlayFocus.requestFocus() }
                                 true
                             } else {
                                 false
                             }
                         }
+                        // Saat kontrol tertutup, kiri/kanan = mundur/maju 10 detik.
+                        // Saat kontrol tampil (setelah OK), biarkan D-pad berpindah fokus.
                         Key.DirectionLeft -> {
-                            if (locked) {
+                            if (locked || controlsShown) {
                                 false
                             } else {
                                 seekBy(-SEEK_STEP_MS)
@@ -817,7 +822,7 @@ fun PlayerChrome(
                             }
                         }
                         Key.DirectionRight -> {
-                            if (locked) {
+                            if (locked || controlsShown) {
                                 false
                             } else {
                                 seekBy(SEEK_STEP_MS)
