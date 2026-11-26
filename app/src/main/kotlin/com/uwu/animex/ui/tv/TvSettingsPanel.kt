@@ -160,12 +160,9 @@ private fun SettingsRootPage(
     onOpen: (TvSettingsPage) -> Unit,
 ) {
     val backdrop by TvPrefs.backdrop.collectAsStateWithLifecycle()
-    val source by SyncSourcePref.source.collectAsStateWithLifecycle()
     val downloads by Downloads.items.collectAsStateWithLifecycle()
     val appearance by Appearance.settings.collectAsStateWithLifecycle()
     val notifications by NotificationPrefs.state.collectAsStateWithLifecycle()
-    val malLogged by Mal.loggedIn.collectAsStateWithLifecycle()
-    val aniLogged by AniList.loggedIn.collectAsStateWithLifecycle()
 
     TvSettingRow(
         label = "Mode tema",
@@ -182,21 +179,6 @@ private fun SettingsRootPage(
         value = backdrop.label,
         chevron = true,
     ) { onOpen(TvSettingsPage.BACKDROP) }
-    TvSettingRow(
-        label = "Sinkronisasi",
-        value = source.label,
-        chevron = true,
-    ) { onOpen(TvSettingsPage.SYNC) }
-    TvSettingRow(
-        label = "Pairing MAL / AniList",
-        value =
-            when {
-                malLogged && aniLogged -> "Dua akun tersambung"
-                malLogged || aniLogged -> "Satu akun tersambung"
-                else -> "Kode + QR"
-            },
-        chevron = true,
-    ) { onOpen(TvSettingsPage.PAIR) }
     TvSettingRow(
         label = "Unduhan",
         value = if (downloads.isEmpty()) "Kosong" else "${downloads.size} item",

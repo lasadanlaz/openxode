@@ -10,28 +10,26 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.uwu.animex.data.model.HomeData
-import com.uwu.animex.data.model.Movie
 import com.uwu.animex.ui.common.UiState
 import com.uwu.animex.ui.viewmodel.HomeViewModel
 
 @Composable
 fun TvHomeScreen(
     onOpen: (String) -> Unit,
+    onSearch: (String) -> Unit,
     viewModel: HomeViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { viewModel.revalidate() }
 
     when (val s = state) {
-        is UiState.Ready -> TvHomeContent(s.value, onOpen)
+        is UiState.Ready -> TvHomeContent(s.value, onOpen, onSearch)
         is UiState.Error -> TvErrorState(s.msg, onRetry = { viewModel.refresh() })
         else -> TvLoading()
     }
@@ -41,10 +39,8 @@ fun TvHomeScreen(
 private fun TvHomeContent(
     data: HomeData,
     onOpen: (String) -> Unit,
+    onSearch: (String) -> Unit,
 ) {
-    val fallbackHero = data.hot.firstOrNull() ?: data.popular.firstOrNull() ?: data.update.firstOrNull()
-    var hero by remember(data) { mutableStateOf<Movie?>(fallbackHero) }
-
     val rows =
         remember(data) {
             buildList {
@@ -67,7 +63,13 @@ private fun TvHomeContent(
                 bottom = TvDimens.ContentBottom,
             ),
     ) {
-        TvHero(movie = hero)
+        TvSearchBar(
+            value = "",
+            onValueChange = {},
+            onSubmit = { onSearch("") },
+            modifier = Modifier.fillMaxWidth(),
+            readOnly = true,
+        )
         Column(
             Modifier
                 .fillMaxWidth()
@@ -80,7 +82,6 @@ private fun TvHomeContent(
                     title = title,
                     movies = movies,
                     onOpen = { movie -> movie.id?.let(onOpen) },
-                    onFocused = { movie -> hero = movie },
                 )
             }
         }

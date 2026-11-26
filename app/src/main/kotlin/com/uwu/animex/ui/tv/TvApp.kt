@@ -13,7 +13,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,8 +27,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.uwu.animex.core.pairing.PairingLink
-import com.uwu.animex.core.pairing.PairingRouter
 import com.uwu.animex.ui.navigation.NotificationRouter
 import com.uwu.animex.ui.player.MiniPlayerController
 import com.uwu.animex.ui.player.PlayerHost
@@ -37,11 +34,12 @@ import com.uwu.animex.ui.player.PlayerHost
 private val tvRailEntries =
     listOf(
         TvRailEntry(TvTab.HOME, "Beranda", Icons.Outlined.Home),
-        TvRailEntry(TvTab.SEARCH, "Cari", Icons.Outlined.Search),
         TvRailEntry(TvTab.SCHEDULE, "Jadwal", Icons.Outlined.DateRange),
         TvRailEntry(TvTab.EXPLORE, "Explore", Icons.Outlined.Explore),
         TvRailEntry(TvTab.LIBRARY, "Pustaka", Icons.Outlined.VideoLibrary),
     )
+
+private val tvRailTabs = tvRailEntries.map { it.tab }.toSet()
 
 @Composable
 fun TvApp() {
@@ -50,11 +48,15 @@ fun TvApp() {
     var railExpanded by remember { mutableStateOf(false) }
     var detailId by rememberSaveable { mutableStateOf<String?>(null) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
-    var pairPrefill by remember { mutableStateOf<PairingLink?>(null) }
+    var showSearch by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     val context = LocalContext.current
     val tabFocus = remember { TvTab.entries.associateWith { FocusRequester() } }
     fun focusTab(target: TvTab) {
         tabFocus[target]?.requestFocus()
+    }
+    fun focusCurrentTab() {
+        focusTab(if (tab in tvRailTabs) tab else TvTab.HOME)
     }
     val initialTab = rememberSaveable { tab }
     LaunchedEffect(Unit) {
@@ -67,6 +69,7 @@ fun TvApp() {
         val id = pendingDetail ?: return@LaunchedEffect
         NotificationRouter.pendingDetail.value = null
         showSettings = false
+        showSearch = false
         detailId = id
     }
 
@@ -75,6 +78,7 @@ fun TvApp() {
         val link = pendingEpisode ?: return@LaunchedEffect
         NotificationRouter.pendingEpisode.value = null
         showSettings = false
+        showSearch = false
         MiniPlayerController.open(
             epId = link.epId,
             title = link.title,
@@ -84,29 +88,23 @@ fun TvApp() {
         )
     }
 
-    val pendingPair by PairingRouter.pending.collectAsStateWithLifecycle()
-    LaunchedEffect(pendingPair) {
-        val link = pendingPair ?: return@LaunchedEffect
-        PairingRouter.pending.value = null
-        detailId = null
-        pairPrefill = link
-        showSettings = true
-    }
-
     BackHandler {
         when {
             MiniPlayerController.expanded -> MiniPlayerController.minimize()
             showSettings -> {
                 showSettings = false
-                pairPrefill = null
-                focusTab(tab)
+                focusCurrentTab()
+            }
+            showSearch -> {
+                showSearch = false
+                focusCurrentTab()
             }
             detailId != null -> {
                 detailId = null
-                focusTab(tab)
+                focusCurrentTab()
             }
             railExpanded -> (context as? Activity)?.finish()
-            else -> focusTab(tab)
+            else -> focusCurrentTab()
         }
     }
 
@@ -123,20 +121,33 @@ fun TvApp() {
                 )
         ) {
             val openDetail: (String) -> Unit = { id -> if (id.isNotBlank()) detailId = id }
+            val openSearch: (String) -> Unit = { query ->
+                searchQuery = query
+                showSearch = true
+            }
             val id = detailId
             if (id != null) {
                 TvDetailScreen(
                     id = id,
                     onBack = {
                         detailId = null
-                        focusTab(tab)
+                        focusCurrentTab()
                     },
                     onOpen = openDetail,
                 )
+            } else if (showSearch) {
+                TvSearchScreen(
+                    initialQuery = searchQuery,
+                    onOpen = openDetail,
+                    onBack = {
+                        showSearch = false
+                        focusCurrentTab()
+                    },
+                )
             } else {
                 when (tab) {
-                    TvTab.SEARCH -> TvSearchScreen(onOpen = openDetail)
-                    TvTab.HOME -> TvHomeScreen(onOpen = openDetail)
+                    TvTab.SEARCH -> TvHomeScreen(onOpen = openDetail, onSearch = openSearch)
+                    TvTab.HOME -> TvHomeScreen(onOpen = openDetail, onSearch = openSearch)
                     TvTab.SCHEDULE -> TvScheduleScreen(onOpen = openDetail)
                     TvTab.EXPLORE -> TvExploreScreen(onOpen = openDetail)
                     TvTab.LIBRARY -> TvLibraryScreen(onOpen = openDetail)
@@ -149,7 +160,10 @@ fun TvApp() {
                 entries = tvRailEntries,
                 selected = tab,
                 onSelect = { target ->
-                    if (target != tab) detailId = null
+                    if (target != tab) {
+                        detailId = null
+                        showSearch = false
+                    }
                     tab = target
                 },
                 onSettings = { showSettings = true },
@@ -160,12 +174,9 @@ fun TvApp() {
 
         if (showSettings) {
             TvSettingsOverlay(
-                initialPair = pairPrefill,
-                onPairConsumed = { pairPrefill = null },
                 onDismiss = {
                     showSettings = false
-                    pairPrefill = null
-                    focusTab(tab)
+                    focusCurrentTab()
                 },
             )
         }

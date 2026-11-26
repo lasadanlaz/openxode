@@ -32,9 +32,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -53,9 +57,13 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -429,42 +437,69 @@ fun TvEpisodeCard(
 }
 
 @Composable
-fun TvHero(movie: Movie?) {
-    if (movie == null) {
-        Column(Modifier.fillMaxWidth().heightIn(min = 220.dp)) {
-            Text("AnimeX TV", color = TvColors.Text, fontSize = 46.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            Text("Pilih anime untuk mulai nonton.", color = TvColors.Muted, fontSize = 16.sp)
+fun TvSearchBar(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+    modifier: Modifier = Modifier,
+    readOnly: Boolean = false,
+) {
+    val keyboard = LocalSoftwareKeyboardController.current
+    Row(
+        modifier
+            .clip(RoundedCornerShape(50))
+            .background(TvColors.SurfaceHigh)
+            .border(1.dp, TvColors.Outline, RoundedCornerShape(50))
+            .then(
+                if (readOnly) {
+                    Modifier.clickable { onSubmit() }
+                } else {
+                    Modifier
+                },
+            )
+            .padding(horizontal = 22.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Outlined.Search, contentDescription = null, tint = TvColors.Muted)
+        Spacer(Modifier.width(14.dp))
+        if (readOnly) {
+            Text(
+                value.takeIf { it.isNotBlank() } ?: "Cari anime…",
+                color = if (value.isBlank()) TvColors.Muted else TvColors.Text,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+            )
+        } else {
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                textStyle =
+                    TextStyle(
+                        color = TvColors.Text,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                cursorBrush = SolidColor(TvColors.Accent),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions =
+                    KeyboardActions(
+                        onSearch = {
+                            keyboard?.hide()
+                            onSubmit()
+                        },
+                    ),
+                decorationBox = { inner ->
+                    Box {
+                        if (value.isBlank()) {
+                            Text("Ketik judul anime…", color = TvColors.Muted, fontSize = 18.sp)
+                        }
+                        inner()
+                    }
+                },
+            )
         }
-        return
-    }
-    val meta =
-        listOfNotNull(
-            movie.score?.takeIf { it.isNotBlank() }?.let { "★ $it" },
-            movie.type?.takeIf { it.isNotBlank() },
-            movie.year?.takeIf { it.isNotBlank() },
-            movie.status?.takeIf { it.isNotBlank() },
-        ).joinToString("  •  ")
-    val genres = movie.genre.orEmpty().split(",", "•").map { it.trim() }.filter { it.isNotBlank() }.joinToString("  •  ")
-    Column(Modifier.fillMaxWidth().heightIn(min = 196.dp)) {
-        Text(
-            movie.title.orEmpty(),
-            color = TvColors.Text,
-            fontSize = 44.sp,
-            lineHeight = 48.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        if (meta.isNotBlank()) {
-            Spacer(Modifier.height(8.dp))
-            Text(meta, color = TvColors.Text.copy(alpha = 0.85f), fontSize = 15.sp)
-        }
-        if (genres.isNotBlank()) {
-            Spacer(Modifier.height(4.dp))
-            Text(genres, color = TvColors.Accent, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        Spacer(Modifier.height(8.dp))
     }
 }
 
