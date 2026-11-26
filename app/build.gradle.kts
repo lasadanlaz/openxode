@@ -95,6 +95,14 @@ android {
     }
 
     signingConfigs {
+        // Debug key tetap di repo supaya update lewat adb install -r tidak perlu uninstall
+        // (data aplikasi di TV tetap aman). Khusus debug, jangan dipakai untuk rilis resmi.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         create("release") {
             storeFile = System.getenv("KEYSTORE_FILE")?.let { file(it) }
             storePassword = System.getenv("KEYSTORE_PASSWORD")
@@ -104,6 +112,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

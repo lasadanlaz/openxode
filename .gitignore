@@ -16,6 +16,7 @@ userHome/
 # Signing, credentials, and generated apps
 *.jks
 *.keystore
+!app/debug.keystore
 keystore/
 google-services.json
 *.apk
