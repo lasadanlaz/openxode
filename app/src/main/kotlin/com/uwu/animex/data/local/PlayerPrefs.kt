@@ -39,7 +39,7 @@ object PlayerPrefs {
     @Volatile
     private var appContext: Context? = null
 
-    var quality: Int = 0
+    var quality: Int = 720
         private set
 
     private val DEFAULT_HIDDEN_BUTTONS =
@@ -150,7 +150,7 @@ object PlayerPrefs {
         val app = context.applicationContext
         appContext = app
         val sp = app.getSharedPreferences(PrefKeys.Player.FILE, Context.MODE_PRIVATE)
-        quality = sp.getInt(PrefKeys.Player.QUALITY, 0)
+        quality = sp.getInt(PrefKeys.Player.QUALITY, 720)
         _gesturesEnabled.value = sp.getBoolean(PrefKeys.Player.GESTURES, true)
         _hiddenButtons.value =
             if (sp.contains(PrefKeys.Player.HIDDEN_BUTTONS)) {

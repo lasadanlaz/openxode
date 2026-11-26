@@ -26,11 +26,12 @@ internal object TvColors {
 
 internal object TvDimens {
     /** Lebar rail saat fokus berada di rail (label ditampilkan). */
-    val RailWidth = 184.dp
+    val RailWidth = 240.dp
 
     /** Lebar rail saat fokus berada di konten (hanya ikon). */
-    val RailCollapsedWidth = 74.dp
-    val ContentStart = 84.dp
+    val RailCollapsedWidth = 82.dp
+    val ContentStart = 92.dp
+    val ContentStartExpanded = 250.dp
     val ContentEnd = 28.dp
     val ContentTop = 40.dp
     val ContentBottom = 62.dp

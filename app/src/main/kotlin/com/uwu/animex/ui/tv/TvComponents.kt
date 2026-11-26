@@ -39,6 +39,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,6 +60,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.uwu.animex.data.api.Api
 import com.uwu.animex.data.model.Episode
 import com.uwu.animex.data.model.Movie
 
@@ -155,24 +157,24 @@ fun TvRailItem(
     Row(
         modifier =
             Modifier
-                .height(46.dp)
-                .then(if (expanded) Modifier.fillMaxWidth() else Modifier.width(46.dp))
+                .height(52.dp)
+                .then(if (expanded) Modifier.fillMaxWidth() else Modifier.width(52.dp))
                 .clip(RoundedCornerShape(50))
                 .background(background)
                 .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
                 .onFocusChanged { onFocus(it.isFocused) }
                 .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-                .padding(horizontal = if (expanded) 14.dp else 0.dp),
+                .padding(horizontal = if (expanded) 16.dp else 0.dp),
         horizontalArrangement = if (expanded) Arrangement.Start else Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = label, tint = content, modifier = Modifier.size(20.dp))
+        Icon(icon, contentDescription = label, tint = content, modifier = Modifier.size(22.dp))
         if (expanded) {
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(14.dp))
             Text(
                 label,
                 color = content,
-                fontSize = 15.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
             )
@@ -187,10 +189,13 @@ fun TvRail(
     onSelect: (TvTab) -> Unit,
     onSettings: () -> Unit,
     homeFocus: FocusRequester? = null,
+    onExpandedChange: (Boolean) -> Unit = {},
 ) {
     var focusedTab by remember { mutableStateOf<TvTab?>(null) }
     var settingsFocused by remember { mutableStateOf(false) }
     val expanded = focusedTab != null || settingsFocused
+
+    LaunchedEffect(expanded) { onExpandedChange(expanded) }
 
     Column(
         Modifier
@@ -238,6 +243,8 @@ fun TvPosterCard(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
+    val domain = Api.activeDomain
+    val poster = remember(movie.image_poster, domain) { Api.absUrl(movie.image_poster) }
     Column(modifier) {
         Box(
             Modifier
@@ -256,7 +263,7 @@ fun TvPosterCard(
                 fontWeight = FontWeight.Bold,
             )
             AsyncImage(
-                model = movie.image_poster,
+                model = poster,
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
@@ -358,9 +365,14 @@ fun TvEpisodeCard(
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val label = ep.index?.takeIf { it.isNotBlank() }?.let { "Ep $it" } ?: "Episode"
+    val domain = Api.activeDomain
     val image =
-        ep.image?.takeIf { it.isNotBlank() }
-            ?: fallbackImage?.takeIf { it.isNotBlank() }
+        remember(ep.image, fallbackImage, domain) {
+            Api.absUrl(
+                ep.image?.takeIf { it.isNotBlank() }
+                    ?: fallbackImage?.takeIf { it.isNotBlank() },
+            )
+        }
     Column(Modifier.width(252.dp)) {
         Box(
             Modifier

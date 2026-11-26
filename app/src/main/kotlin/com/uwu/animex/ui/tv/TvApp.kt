@@ -8,6 +8,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.Explore
@@ -25,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.uwu.animex.ui.navigation.NotificationRouter
 import com.uwu.animex.ui.player.MiniPlayerController
@@ -43,6 +45,7 @@ private val tvRailEntries =
 fun TvApp() {
     val backdrop by TvPrefs.backdrop.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(TvTab.HOME) }
+    var railExpanded by remember { mutableStateOf(false) }
     var detailId by rememberSaveable { mutableStateOf<String?>(null) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
@@ -92,7 +95,15 @@ fun TvApp() {
     Box(Modifier.fillMaxSize().background(TvColors.Background)) {
         TvBackdrop(style = backdrop)
 
-        Box(Modifier.fillMaxSize()) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(
+                    start =
+                        if (railExpanded) TvDimens.ContentStartExpanded - TvDimens.ContentStart
+                        else 0.dp,
+                )
+        ) {
             val openDetail: (String) -> Unit = { id -> if (id.isNotBlank()) detailId = id }
             val id = detailId
             if (id != null) {
@@ -125,6 +136,7 @@ fun TvApp() {
                 },
                 onSettings = { showSettings = true },
                 homeFocus = homeFocus,
+                onExpandedChange = { railExpanded = it },
             )
         }
 

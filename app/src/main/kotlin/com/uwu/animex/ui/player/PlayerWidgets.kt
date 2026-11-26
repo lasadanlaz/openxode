@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -58,8 +59,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -71,6 +74,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
+import com.uwu.animex.data.api.Api
 import com.uwu.animex.data.local.Progress
 import com.uwu.animex.data.model.Episode
 import com.uwu.animex.data.user.UserApi
@@ -183,6 +188,12 @@ internal fun EpisodePanel(
         viewModel.pinEpisode(movieId, currentIndex)
     }
     val state by viewModel.episodeList.collectAsStateWithLifecycle()
+    val domain = Api.activeDomain
+    val fallbackImage =
+        remember(movieId, domain) {
+            val movie = Api.peekDetail(movieId)?.movie
+            Api.absUrl(movie?.image_cover?.takeIf { it.isNotBlank() } ?: movie?.image_poster?.takeIf { it.isNotBlank() })
+        }
     val episodes =
         remember(state.episodes, state.pinned, state.newestFirst, currentEpId) {
             val pinned = state.pinned?.takeIf { it.id == currentEpId }
@@ -260,6 +271,10 @@ internal fun EpisodePanel(
                     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                         itemsIndexed(episodes, key = { i, e -> e.id ?: "i$i" }) { _, ep ->
                             val current = ep.id == currentEpId
+                            val thumb =
+                                remember(ep.image, fallbackImage, domain) {
+                                    Api.absUrl(ep.image?.takeIf { it.isNotBlank() } ?: fallbackImage)
+                                }
                             Row(
                                 Modifier
                                     .fillMaxWidth()
@@ -272,6 +287,21 @@ internal fun EpisodePanel(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
+                                if (thumb != null) {
+                                    Box(
+                                        Modifier
+                                            .size(88.dp, 50.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Color(0x22FFFFFF)),
+                                    ) {
+                                        AsyncImage(
+                                            model = thumb,
+                                            contentDescription = null,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize(),
+                                        )
+                                    }
+                                }
                                 Column(Modifier.weight(1f)) {
                                     Text(
                                         "Ep ${ep.index.orEmpty()}",
