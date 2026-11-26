@@ -139,6 +139,7 @@ fun TvApp() {
 
         PlayerHost(
             hasFloatingBottomBar = false,
+            tvMode = true,
             onOpenAnime = { animeId ->
                 MiniPlayerController.minimize()
                 if (animeId.isNotBlank()) detailId = animeId

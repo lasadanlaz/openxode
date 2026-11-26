@@ -332,6 +332,7 @@ fun TvEpisodeRow(
     title: String,
     episodes: List<Episode>,
     onPlay: (Episode) -> Unit,
+    fallbackImage: String? = null,
 ) {
     if (episodes.isEmpty()) return
     Column(Modifier.fillMaxWidth()) {
@@ -342,7 +343,7 @@ fun TvEpisodeRow(
             horizontalArrangement = Arrangement.spacedBy(TvDimens.CardGap),
         ) {
             items(episodes, key = { it.id ?: (it.index.orEmpty() + "#" + it.hashCode()) }) { ep ->
-                TvEpisodeCard(ep) { onPlay(ep) }
+                TvEpisodeCard(ep, fallbackImage) { onPlay(ep) }
             }
         }
     }
@@ -351,11 +352,15 @@ fun TvEpisodeRow(
 @Composable
 fun TvEpisodeCard(
     ep: Episode,
+    fallbackImage: String? = null,
     onClick: () -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val label = ep.index?.takeIf { it.isNotBlank() }?.let { "Ep $it" } ?: "Episode"
+    val image =
+        ep.image?.takeIf { it.isNotBlank() }
+            ?: fallbackImage?.takeIf { it.isNotBlank() }
     Column(Modifier.width(252.dp)) {
         Box(
             Modifier
@@ -373,7 +378,7 @@ fun TvEpisodeCard(
                 fontWeight = FontWeight.Bold,
             )
             AsyncImage(
-                model = ep.image,
+                model = image,
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,

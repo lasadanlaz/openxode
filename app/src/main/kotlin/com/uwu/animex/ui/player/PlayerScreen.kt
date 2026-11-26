@@ -183,10 +183,15 @@ private fun setFullscreen(
 private fun applyPlayerOrientation(
     activity: Activity?,
     on: Boolean,
+    tvMode: Boolean = false,
 ) {
     activity ?: return
     activity.requestedOrientation =
-        if (on) PlayerPrefs.defaultOrientation.value.activityInfo else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        when {
+            tvMode -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            on -> PlayerPrefs.defaultOrientation.value.activityInfo
+            else -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
 }
 
 private class ExoTarget(
@@ -204,6 +209,7 @@ internal fun Server.label(): String {
 fun PlayerHost(
     hasFloatingBottomBar: Boolean,
     hidden: Boolean = false,
+    tvMode: Boolean = false,
     onOpenAnime: (String) -> Unit,
     onNeedLogin: () -> Unit,
 ) {
@@ -230,6 +236,7 @@ fun PlayerHost(
                 startAtMs = req.startAtMs,
                 requestNonce = req.nonce,
                 expanded = expanded,
+                tvMode = tvMode,
                 miniBottomClearance = bottomClearance,
                 onMinimize = { MiniPlayerController.minimize() },
                 onExpand = { MiniPlayerController.expand() },
@@ -253,6 +260,7 @@ fun PlayerScreen(
     onNeedLogin: () -> Unit = {},
     requestNonce: Long = 0L,
     expanded: Boolean = true,
+    tvMode: Boolean = false,
     miniBottomClearance: Dp = 16.dp,
     onMinimize: (() -> Unit)? = null,
     onExpand: (() -> Unit)? = null,
@@ -424,16 +432,19 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(orientationPref, manualLock, expanded) {
-        if (!expanded) {
-            manualLock = null
-            applyPlayerOrientation(activity, false)
-        } else if (manualLock == null) {
-            applyPlayerOrientation(activity, true)
+    LaunchedEffect(orientationPref, manualLock, expanded, tvMode) {
+        when {
+            tvMode -> applyPlayerOrientation(activity, true, tvMode = true)
+            !expanded -> {
+                manualLock = null
+                applyPlayerOrientation(activity, false)
+            }
+            manualLock == null -> applyPlayerOrientation(activity, true)
         }
     }
 
     fun enterFullscreen() {
+        if (tvMode) return
         val target =
             if (orientationPref == PlayerOrientation.ReverseLandscape) {
                 ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
@@ -445,11 +456,13 @@ fun PlayerScreen(
     }
 
     fun exitFullscreen() {
+        if (tvMode) return
         manualLock = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
     }
 
     fun toggleFullscreen() {
+        if (tvMode) return
         if (fullscreen) exitFullscreen() else enterFullscreen()
     }
 
@@ -515,7 +528,7 @@ fun PlayerScreen(
             }
             PipHelper.onPlayerDisposed(activity)
             setFullscreen(activity, false)
-            applyPlayerOrientation(activity, false)
+            applyPlayerOrientation(activity, false, tvMode)
         }
     }
 
@@ -696,18 +709,25 @@ fun PlayerScreen(
         onBack()
     }
     val minimizeOrClose: () -> Unit = {
-        if (supportsMiniPlayer) {
+        if (!tvMode && supportsMiniPlayer) {
             onMinimize?.invoke()
         } else {
             closeCompletely()
         }
     }
     val topBarBackOrMinimize: () -> Unit = {
-        if (fullscreen) exitFullscreen() else minimizeOrClose()
+        if (tvMode) {
+            closeCompletely()
+        } else if (fullscreen) {
+            exitFullscreen()
+        } else {
+            minimizeOrClose()
+        }
     }
 
     BackHandler(enabled = expanded) {
         when {
+            tvMode -> closeCompletely()
             showSpeed -> showSpeed = false
             showSleep -> showSleep = false
             showDialog -> showDialog = false

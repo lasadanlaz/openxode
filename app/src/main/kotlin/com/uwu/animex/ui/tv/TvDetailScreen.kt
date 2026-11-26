@@ -213,6 +213,9 @@ private fun TvDetailContent(
             title = "Episode",
             episodes = episodes,
             onPlay = play,
+            fallbackImage =
+                movie.image_cover?.takeIf { it.isNotBlank() }
+                    ?: movie.image_poster?.takeIf { it.isNotBlank() },
         )
 
         val seasons = payload.seasons
