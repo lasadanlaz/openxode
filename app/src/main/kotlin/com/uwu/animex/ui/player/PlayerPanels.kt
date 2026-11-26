@@ -133,9 +133,9 @@ internal fun speedChoices(): List<Float> =
 internal fun SpeedPanel(
     visible: Boolean,
     speed: Float,
+    tvMode: Boolean = false,
     onDismiss: () -> Unit,
     onSelect: (Float) -> Unit,
-    tvMode: Boolean = false,
 ) {
     AnimatedVisibility(
         visible = visible,
@@ -160,9 +160,9 @@ internal fun SleepTimerPanel(
     deadlineMs: Long,
     nowMs: Long,
     afterEpisode: Boolean,
+    tvMode: Boolean = false,
     onDismiss: () -> Unit,
     onSelect: (deadlineMs: Long, afterEpisode: Boolean, message: String) -> Unit,
-    tvMode: Boolean = false,
 ) {
     AnimatedVisibility(
         visible = visible,
@@ -195,8 +195,8 @@ internal fun overlayButtonColors() =
 internal fun PillButton(
     icon: ImageVector,
     label: String,
-    onClick: () -> Unit,
     focusRequester: FocusRequester? = null,
+    onClick: () -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
@@ -315,9 +315,9 @@ internal fun PlayerOptionPanel(
     title: String,
     options: List<String>,
     selected: Int,
+    tvMode: Boolean = false,
     onDismiss: () -> Unit,
     onSelect: (Int) -> Unit,
-    tvMode: Boolean = false,
 ) {
     val optionFocus = remember { FocusRequester() }
     val closeInteraction = remember { MutableInteractionSource() }
