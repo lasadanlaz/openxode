@@ -15,6 +15,7 @@ import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,9 +27,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.uwu.animex.data.local.Appearance
 import com.uwu.animex.ui.navigation.NotificationRouter
 import com.uwu.animex.ui.player.MiniPlayerController
 import com.uwu.animex.ui.player.PlayerHost
+import com.uwu.animex.ui.theme.rememberAppDarkTheme
 
 private val tvRailEntries =
     listOf(
@@ -43,6 +46,9 @@ private val tvRailTabs = tvRailEntries.map { it.tab }.toSet()
 @Composable
 fun TvApp() {
     val backdrop by TvPrefs.backdrop.collectAsStateWithLifecycle()
+    val settings by Appearance.settings.collectAsStateWithLifecycle()
+    val darkTheme = rememberAppDarkTheme(settings.mode)
+    val tvColors = if (darkTheme) TvColorsDark else TvColorsLight
     var tab by remember { mutableStateOf(TvTab.HOME) }
     var railExpanded by remember { mutableStateOf(false) }
     var detailId by remember { mutableStateOf<String?>(null) }
@@ -52,6 +58,8 @@ fun TvApp() {
     val context = LocalContext.current
     val tabFocus = remember { TvTab.entries.associateWith { FocusRequester() } }
     val homeListFocus = remember { FocusRequester() }
+    val railEnabled = detailId == null && !showSearch && !showSettings && !MiniPlayerController.expanded
+
     fun focusTab(target: TvTab) {
         tabFocus[target]?.requestFocus()
     }
@@ -108,97 +116,100 @@ fun TvApp() {
         }
     }
 
-    Box(Modifier.fillMaxSize().background(TvColors.Background)) {
-        TvBackdrop(style = backdrop)
+    CompositionLocalProvider(LocalTvColors provides tvColors) {
+        Box(Modifier.fillMaxSize().background(LocalTvColors.current.Background)) {
+            TvBackdrop(style = backdrop)
 
-        Box(
-            Modifier
-                .fillMaxSize()
-                .padding(
-                    start =
-                        if (railExpanded) TvDimens.ContentStartExpanded - TvDimens.ContentStart
-                        else 0.dp,
-                )
-        ) {
-            val openDetail: (String) -> Unit = { id -> if (id.isNotBlank()) detailId = id }
-            val openSearch: (String) -> Unit = { query ->
-                searchQuery = query
-                showSearch = true
-            }
-            val id = detailId
-            if (id != null) {
-                TvDetailScreen(
-                    id = id,
-                    onBack = {
-                        detailId = null
-                        focusCurrentTab()
-                    },
-                    onOpen = openDetail,
-                )
-            } else if (showSearch) {
-                TvSearchScreen(
-                    initialQuery = searchQuery,
-                    onOpen = openDetail,
-                    onBack = {
-                        showSearch = false
-                        focusCurrentTab()
-                    },
-                )
-            } else {
-                when (tab) {
-                    TvTab.SEARCH ->
-                        TvHomeScreen(
-                            onOpen = openDetail,
-                            onSearch = openSearch,
-                            listFocusRequester = homeListFocus,
-                        )
-                    TvTab.HOME ->
-                        TvHomeScreen(
-                            onOpen = openDetail,
-                            onSearch = openSearch,
-                            listFocusRequester = homeListFocus,
-                        )
-                    TvTab.SCHEDULE -> TvScheduleScreen(onOpen = openDetail)
-                    TvTab.EXPLORE -> TvExploreScreen(onOpen = openDetail)
-                    TvTab.LIBRARY -> TvLibraryScreen(onOpen = openDetail)
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(
+                        start =
+                            if (railExpanded) TvDimens.ContentStartExpanded - TvDimens.ContentStart
+                            else 0.dp,
+                    )
+            ) {
+                val openDetail: (String) -> Unit = { id -> if (id.isNotBlank()) detailId = id }
+                val openSearch: (String) -> Unit = { query ->
+                    searchQuery = query
+                    showSearch = true
+                }
+                val id = detailId
+                if (id != null) {
+                    TvDetailScreen(
+                        id = id,
+                        onBack = {
+                            detailId = null
+                            focusCurrentTab()
+                        },
+                        onOpen = openDetail,
+                    )
+                } else if (showSearch) {
+                    TvSearchScreen(
+                        initialQuery = searchQuery,
+                        onOpen = openDetail,
+                        onBack = {
+                            showSearch = false
+                            focusCurrentTab()
+                        },
+                    )
+                } else {
+                    when (tab) {
+                        TvTab.SEARCH ->
+                            TvHomeScreen(
+                                onOpen = openDetail,
+                                onSearch = openSearch,
+                                listFocusRequester = homeListFocus,
+                            )
+                        TvTab.HOME ->
+                            TvHomeScreen(
+                                onOpen = openDetail,
+                                onSearch = openSearch,
+                                listFocusRequester = homeListFocus,
+                            )
+                        TvTab.SCHEDULE -> TvScheduleScreen(onOpen = openDetail)
+                        TvTab.EXPLORE -> TvExploreScreen(onOpen = openDetail)
+                        TvTab.LIBRARY -> TvLibraryScreen(onOpen = openDetail)
+                    }
                 }
             }
-        }
 
-        Box(Modifier.align(Alignment.CenterStart)) {
-            TvRail(
-                entries = tvRailEntries,
-                selected = tab,
-                onSelect = { target ->
-                    if (target != tab) {
-                        detailId = null
-                        showSearch = false
-                    }
-                    tab = target
+            Box(Modifier.align(Alignment.CenterStart)) {
+                TvRail(
+                    entries = tvRailEntries,
+                    selected = tab,
+                    onSelect = { target ->
+                        if (target != tab) {
+                            detailId = null
+                            showSearch = false
+                        }
+                        tab = target
+                    },
+                    onSettings = { showSettings = true },
+                    focusRequesters = tabFocus,
+                    enabled = railEnabled,
+                    onExpandedChange = { railExpanded = it },
+                )
+            }
+
+            if (showSettings) {
+                TvSettingsOverlay(
+                    onDismiss = {
+                        showSettings = false
+                        focusCurrentTab()
+                    },
+                )
+            }
+
+            PlayerHost(
+                hasFloatingBottomBar = false,
+                tvMode = true,
+                onOpenAnime = { animeId ->
+                    MiniPlayerController.minimize()
+                    if (animeId.isNotBlank()) detailId = animeId
                 },
-                onSettings = { showSettings = true },
-                focusRequesters = tabFocus,
-                onExpandedChange = { railExpanded = it },
+                onNeedLogin = {},
             )
         }
-
-        if (showSettings) {
-            TvSettingsOverlay(
-                onDismiss = {
-                    showSettings = false
-                    focusCurrentTab()
-                },
-            )
-        }
-
-        PlayerHost(
-            hasFloatingBottomBar = false,
-            tvMode = true,
-            onOpenAnime = { animeId ->
-                MiniPlayerController.minimize()
-                if (animeId.isNotBlank()) detailId = animeId
-            },
-            onNeedLogin = {},
-        )
     }
 }

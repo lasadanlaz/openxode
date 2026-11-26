@@ -118,7 +118,7 @@ fun TvSectionTitle(
     Text(
         title,
         modifier = modifier,
-        color = TvColors.Text,
+        color = LocalTvColors.current.Text,
         fontSize = 20.sp,
         fontWeight = FontWeight.Bold,
     )
@@ -131,10 +131,10 @@ fun TvScreenTitle(
     subtitle: String? = null,
 ) {
     Column(modifier) {
-        Text(title, color = TvColors.Text, fontSize = 34.sp, fontWeight = FontWeight.Bold)
+        Text(title, color = LocalTvColors.current.Text, fontSize = 34.sp, fontWeight = FontWeight.Bold)
         if (subtitle != null) {
             Spacer(Modifier.height(4.dp))
-            Text(subtitle, color = TvColors.Muted, fontSize = 14.sp)
+            Text(subtitle, color = LocalTvColors.current.Muted, fontSize = 14.sp)
         }
     }
 }
@@ -145,23 +145,25 @@ fun TvRailItem(
     icon: ImageVector,
     selected: Boolean,
     expanded: Boolean,
+    enabled: Boolean = true,
     focusRequester: FocusRequester? = null,
     onFocus: (Boolean) -> Unit = {},
     onClick: () -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
-    val highlighted = focused || (selected && !expanded)
+    val highlighted = enabled && (focused || (selected && !expanded))
+    val colors = LocalTvColors.current
     val background =
         when {
-            highlighted -> Color.White
+            highlighted -> colors.FocusFill
             else -> Color.Transparent
         }
     val content =
         when {
-            highlighted -> Color.Black
-            selected -> TvColors.Text
-            else -> TvColors.Muted
+            highlighted -> colors.FocusContent
+            selected -> colors.Text
+            else -> colors.Muted
         }
     Row(
         modifier =
@@ -170,9 +172,10 @@ fun TvRailItem(
                 .then(if (expanded) Modifier.fillMaxWidth() else Modifier.width(52.dp))
                 .clip(RoundedCornerShape(50))
                 .background(background)
+                .focusable(enabled)
                 .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
                 .onFocusChanged { onFocus(it.isFocused) }
-                .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+                .clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick)
                 .padding(horizontal = if (expanded) 16.dp else 0.dp),
         horizontalArrangement = if (expanded) Arrangement.Start else Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
@@ -198,19 +201,26 @@ fun TvRail(
     onSelect: (TvTab) -> Unit,
     onSettings: () -> Unit,
     focusRequesters: Map<TvTab, FocusRequester>,
+    enabled: Boolean = true,
     onExpandedChange: (Boolean) -> Unit = {},
 ) {
     var focusedTab by remember { mutableStateOf<TvTab?>(null) }
     var settingsFocused by remember { mutableStateOf(false) }
-    val expanded = focusedTab != null || settingsFocused
+    val expanded = enabled && (focusedTab != null || settingsFocused)
 
     LaunchedEffect(expanded) { onExpandedChange(expanded) }
+    LaunchedEffect(enabled) {
+        if (!enabled) {
+            focusedTab = null
+            settingsFocused = false
+        }
+    }
 
     Column(
         Modifier
             .width(if (expanded) TvDimens.RailWidth else TvDimens.RailCollapsedWidth)
             .fillMaxHeight()
-            .background(if (expanded) TvColors.Rail else Color.Transparent)
+            .background(if (expanded) LocalTvColors.current.Rail else Color.Transparent)
             .padding(horizontal = 14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.Start,
@@ -221,16 +231,17 @@ fun TvRail(
                 icon = entry.icon,
                 selected = selected == entry.tab,
                 expanded = expanded,
+                enabled = enabled,
                 focusRequester = focusRequesters[entry.tab],
                 onFocus = { focused ->
-                    if (focused) {
+                    if (focused && enabled) {
                         focusedTab = entry.tab
                         onSelect(entry.tab)
-                    } else if (focusedTab == entry.tab) {
+                    } else if (!focused && focusedTab == entry.tab) {
                         focusedTab = null
                     }
                 },
-                onClick = { onSelect(entry.tab) },
+                onClick = { if (enabled) onSelect(entry.tab) },
             )
         }
         TvRailItem(
@@ -238,11 +249,12 @@ fun TvRail(
             icon = Icons.Outlined.Settings,
             selected = false,
             expanded = expanded,
+            enabled = enabled,
             onFocus = { focused ->
-                settingsFocused = focused
-                if (focused) onSettings()
+                settingsFocused = focused && enabled
+                if (focused && enabled) onSettings()
             },
-            onClick = onSettings,
+            onClick = { if (enabled) onSettings() },
         )
     }
 }
@@ -299,7 +311,7 @@ fun TvPosterCard(
                             .align(Alignment.TopStart)
                             .padding(8.dp)
                             .clip(RoundedCornerShape(50))
-                            .background(TvColors.Purple)
+                            .background(LocalTvColors.current.Purple)
                             .padding(horizontal = 9.dp, vertical = 3.dp),
                     color = Color.White,
                     fontSize = 11.sp,
@@ -311,14 +323,14 @@ fun TvPosterCard(
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .border(3.dp, TvColors.FocusRing, RoundedCornerShape(14.dp)),
+                        .border(3.dp, LocalTvColors.current.FocusRing, RoundedCornerShape(14.dp)),
                 )
             }
         }
         Spacer(Modifier.height(8.dp))
         Text(
             movie.title.orEmpty(),
-            color = TvColors.Text,
+            color = LocalTvColors.current.Text,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 2,
@@ -427,20 +439,20 @@ fun TvEpisodeCard(
                         .align(Alignment.TopStart)
                         .padding(8.dp)
                         .clip(RoundedCornerShape(50))
-                        .background(TvColors.Purple)
+                        .background(LocalTvColors.current.Purple)
                         .padding(horizontal = 9.dp, vertical = 3.dp),
                 color = Color.White,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
             )
             if (focused) {
-                Box(Modifier.fillMaxSize().border(3.dp, TvColors.FocusRing, RoundedCornerShape(14.dp)))
+                Box(Modifier.fillMaxSize().border(3.dp, LocalTvColors.current.FocusRing, RoundedCornerShape(14.dp)))
             }
         }
         Spacer(Modifier.height(8.dp))
         Text(
             ep.title?.takeIf { it.isNotBlank() } ?: "Episode ${ep.index.orEmpty()}",
-            color = TvColors.Text,
+            color = LocalTvColors.current.Text,
             fontSize = 13.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -466,10 +478,10 @@ fun TvSearchBar(
     Row(
         modifier
             .clip(RoundedCornerShape(50))
-            .background(TvColors.SurfaceHigh)
+            .background(LocalTvColors.current.SurfaceHigh)
             .border(
                 width = if (focused) 3.dp else 1.dp,
-                color = if (focused) TvColors.FocusRing else TvColors.Outline,
+                color = if (focused) LocalTvColors.current.FocusRing else LocalTvColors.current.Outline,
                 shape = RoundedCornerShape(50),
             )
             .then(
@@ -492,12 +504,12 @@ fun TvSearchBar(
             .padding(horizontal = 22.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Outlined.Search, contentDescription = null, tint = TvColors.Muted)
+        Icon(Icons.Outlined.Search, contentDescription = null, tint = LocalTvColors.current.Muted)
         Spacer(Modifier.width(14.dp))
         if (readOnly) {
             Text(
                 value.takeIf { it.isNotBlank() } ?: "Cari anime…",
-                color = if (value.isBlank()) TvColors.Muted else TvColors.Text,
+                color = if (value.isBlank()) LocalTvColors.current.Muted else LocalTvColors.current.Text,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Medium,
             )
@@ -519,11 +531,11 @@ fun TvSearchBar(
                 singleLine = true,
                 textStyle =
                     TextStyle(
-                        color = TvColors.Text,
+                        color = LocalTvColors.current.Text,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Medium,
                     ),
-                cursorBrush = SolidColor(TvColors.Accent),
+                cursorBrush = SolidColor(LocalTvColors.current.Accent),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions =
                     KeyboardActions(
@@ -535,7 +547,7 @@ fun TvSearchBar(
                 decorationBox = { inner ->
                     Box {
                         if (value.isBlank()) {
-                            Text("Ketik judul anime…", color = TvColors.Muted, fontSize = 18.sp)
+                            Text("Ketik judul anime…", color = LocalTvColors.current.Muted, fontSize = 18.sp)
                         }
                         inner()
                     }
@@ -554,18 +566,19 @@ fun TvActionButton(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
+    val colors = LocalTvColors.current
     val background =
         when {
-            filled && focused -> Color.White
-            filled -> TvColors.AccentContainer
-            focused -> Color.White
-            else -> Color.White.copy(alpha = 0.10f)
+            filled && focused -> colors.FocusFill
+            filled -> colors.AccentContainer
+            focused -> colors.FocusFill
+            else -> colors.ButtonIdle
         }
     val content =
         when {
-            filled -> TvColors.OnAccentContainer
-            focused -> Color.Black
-            else -> TvColors.Text
+            filled -> colors.OnAccentContainer
+            focused -> colors.FocusContent
+            else -> colors.Text
         }
     Box(
         Modifier
@@ -587,17 +600,18 @@ fun TvChip(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
+    val colors = LocalTvColors.current
     val background =
         when {
-            selected -> TvColors.Purple
-            focused -> Color.White
-            else -> TvColors.SurfaceHigh
+            selected -> colors.Purple
+            focused -> colors.FocusFill
+            else -> colors.SurfaceHigh
         }
     val content =
         when {
             selected -> Color.White
-            focused -> Color.Black
-            else -> TvColors.Text
+            focused -> colors.FocusContent
+            else -> colors.Text
         }
     Box(
         Modifier
@@ -606,7 +620,7 @@ fun TvChip(
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .then(
                 if (focused && !selected) {
-                    Modifier.border(2.dp, Color.White, RoundedCornerShape(50))
+                    Modifier.border(2.dp, colors.FocusRing, RoundedCornerShape(50))
                 } else {
                     Modifier
                 },
@@ -655,8 +669,8 @@ fun TvSettingRow(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
-    val background = if (focused) TvColors.AccentContainer else Color.Transparent
-    val content = if (focused) TvColors.OnAccentContainer else TvColors.Text
+    val background = if (focused) LocalTvColors.current.AccentContainer else Color.Transparent
+    val content = if (focused) LocalTvColors.current.OnAccentContainer else LocalTvColors.current.Text
     Row(
         modifier =
             Modifier
@@ -680,7 +694,7 @@ fun TvSettingRow(
             value != null -> {
                 Text(
                     value,
-                    color = if (focused) TvColors.OnAccentContainer.copy(alpha = 0.8f) else TvColors.Muted,
+                    color = if (focused) LocalTvColors.current.OnAccentContainer.copy(alpha = 0.8f) else LocalTvColors.current.Muted,
                     fontSize = 14.sp,
                 )
                 if (chevron) {
@@ -706,7 +720,7 @@ fun TvRadioRow(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(if (focused) TvColors.AccentContainer else Color.Transparent)
+            .background(if (focused) LocalTvColors.current.AccentContainer else Color.Transparent)
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 12.dp),
@@ -715,7 +729,7 @@ fun TvRadioRow(
         Text(
             label,
             modifier = Modifier.weight(1f),
-            color = if (focused) TvColors.OnAccentContainer else TvColors.Text,
+            color = if (focused) LocalTvColors.current.OnAccentContainer else LocalTvColors.current.Text,
             fontSize = 17.sp,
             fontWeight = FontWeight.SemiBold,
         )
@@ -723,7 +737,7 @@ fun TvRadioRow(
             Modifier
                 .size(20.dp)
                 .clip(CircleShape)
-                .border(2.dp, if (focused) TvColors.OnAccentContainer else TvColors.Muted, CircleShape),
+                .border(2.dp, if (focused) LocalTvColors.current.OnAccentContainer else LocalTvColors.current.Muted, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             if (selected) {
@@ -731,7 +745,7 @@ fun TvRadioRow(
                     Modifier
                         .size(10.dp)
                         .clip(CircleShape)
-                        .background(if (focused) TvColors.OnAccentContainer else TvColors.AccentContainer),
+                        .background(if (focused) LocalTvColors.current.OnAccentContainer else LocalTvColors.current.AccentContainer),
                 )
             }
         }
@@ -750,9 +764,9 @@ private fun TvToggle(
             .clip(RoundedCornerShape(50))
             .background(
                 when {
-                    checked && focused -> TvColors.PurpleSoft
-                    checked -> TvColors.Purple
-                    else -> Color(0xFF4A4750)
+                    checked && focused -> LocalTvColors.current.PurpleSoft
+                    checked -> LocalTvColors.current.Purple
+                    else -> LocalTvColors.current.ToggleOff
                 },
             )
             .padding(3.dp),
@@ -777,7 +791,7 @@ fun TvPanel(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Box(
-        Modifier.fillMaxSize().background(TvColors.Scrim).padding(top = 24.dp),
+        Modifier.fillMaxSize().background(LocalTvColors.current.Scrim).padding(top = 24.dp),
         contentAlignment = Alignment.TopCenter,
     ) {
         Column(
@@ -786,8 +800,8 @@ fun TvPanel(
                 .fillMaxHeight(0.78f)
                 .heightIn(max = 640.dp)
                 .clip(RoundedCornerShape(28.dp))
-                .background(TvColors.Surface)
-                .border(1.dp, TvColors.Outline, RoundedCornerShape(28.dp))
+                .background(LocalTvColors.current.Surface)
+                .border(1.dp, LocalTvColors.current.Outline, RoundedCornerShape(28.dp))
                 .then(
                     if (focusRequester != null) {
                         Modifier.focusRequester(focusRequester).focusable()
@@ -805,7 +819,7 @@ fun TvPanel(
                     TvBackChip(onBack)
                     Spacer(Modifier.width(12.dp))
                 }
-                Text(title, color = TvColors.Text, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+                Text(title, color = LocalTvColors.current.Text, fontSize = 27.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(12.dp))
             Column(
@@ -827,7 +841,7 @@ fun TvBackChip(
         Modifier
             .size(34.dp)
             .clip(CircleShape)
-            .background(if (focused) TvColors.AccentContainer else Color.White.copy(alpha = 0.08f))
+            .background(if (focused) LocalTvColors.current.AccentContainer else LocalTvColors.current.ButtonIdle)
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -835,7 +849,7 @@ fun TvBackChip(
         Icon(
             Icons.AutoMirrored.Outlined.ArrowBack,
             contentDescription = "Kembali",
-            tint = if (focused) TvColors.OnAccentContainer else TvColors.Text,
+            tint = if (focused) LocalTvColors.current.OnAccentContainer else LocalTvColors.current.Text,
             modifier = Modifier.size(20.dp),
         )
     }
@@ -844,7 +858,7 @@ fun TvBackChip(
 @Composable
 fun TvLoading(modifier: Modifier = Modifier) {
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Memuat…", color = TvColors.Muted, fontSize = 16.sp)
+        Text("Memuat…", color = LocalTvColors.current.Muted, fontSize = 16.sp)
     }
 }
 
@@ -859,9 +873,9 @@ fun TvErrorState(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("Gagal memuat", color = TvColors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Text("Gagal memuat", color = LocalTvColors.current.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
-        Text(message, color = TvColors.Muted, fontSize = 14.sp)
+        Text(message, color = LocalTvColors.current.Muted, fontSize = 14.sp)
         Spacer(Modifier.height(18.dp))
         TvActionButton("Coba lagi", filled = true, onClick = onRetry)
     }
@@ -878,8 +892,8 @@ fun TvEmptyState(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(title, color = TvColors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Text(title, color = LocalTvColors.current.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(6.dp))
-        Text(message, color = TvColors.Muted, fontSize = 14.sp)
+        Text(message, color = LocalTvColors.current.Muted, fontSize = 14.sp)
     }
 }

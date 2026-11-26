@@ -147,7 +147,7 @@ private fun TvDetailContent(
             Column(Modifier.weight(1f)) {
                 Text(
                     movie.title.orEmpty(),
-                    color = TvColors.Text,
+                    color = LocalTvColors.current.Text,
                     fontSize = 36.sp,
                     lineHeight = 40.sp,
                     fontWeight = FontWeight.Bold,
@@ -157,7 +157,7 @@ private fun TvDetailContent(
                 Spacer(Modifier.height(8.dp))
                 Text(
                     metaLine(movie),
-                    color = TvColors.Text.copy(alpha = 0.85f),
+                    color = LocalTvColors.current.Text.copy(alpha = 0.85f),
                     fontSize = 15.sp,
                 )
                 val genres = genreLine(movie)
@@ -165,7 +165,7 @@ private fun TvDetailContent(
                     Spacer(Modifier.height(4.dp))
                     Text(
                         genres,
-                        color = TvColors.Accent,
+                        color = LocalTvColors.current.Accent,
                         fontSize = 14.sp,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
@@ -175,7 +175,7 @@ private fun TvDetailContent(
                     Spacer(Modifier.height(12.dp))
                     Text(
                         synopsis,
-                        color = TvColors.Muted,
+                        color = LocalTvColors.current.Muted,
                         fontSize = 14.sp,
                         lineHeight = 20.sp,
                         maxLines = 5,

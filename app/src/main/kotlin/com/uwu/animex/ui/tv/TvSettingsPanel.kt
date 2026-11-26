@@ -56,6 +56,7 @@ import com.uwu.animex.data.anilist.AniList
 import com.uwu.animex.data.download.Downloads
 import com.uwu.animex.data.local.AccentPalette
 import com.uwu.animex.data.local.Appearance
+import com.uwu.animex.data.local.ThemeMode
 import com.uwu.animex.data.mal.Mal
 import com.uwu.animex.data.tracker.SyncSource
 import com.uwu.animex.data.tracker.SyncSourcePref
@@ -166,7 +167,7 @@ private fun SettingsRootPage(
 
     TvSettingRow(
         label = "Mode tema",
-        value = "Gelap",
+        value = appearance.mode.label,
         chevron = true,
         focusRequester = focusRequester,
     ) { onOpen(TvSettingsPage.DISPLAY) }
@@ -235,7 +236,7 @@ private fun SettingsSyncPage(
     Spacer(Modifier.height(10.dp))
     Text(
         "Hubungkan akun sekali lewat pairing, lalu pilih sumber di atas untuk memakai pustaka daring.",
-        color = TvColors.Muted,
+        color = LocalTvColors.current.Muted,
         fontSize = 13.sp,
         lineHeight = 19.sp,
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
@@ -301,7 +302,7 @@ private fun SettingsPairPage(
     Text(
         "Akun di perangkat ini: MAL ${if (malLogged) "masuk" else "belum"} • " +
             "AniList ${if (aniLogged) "masuk" else "belum"}",
-        color = TvColors.Muted,
+        color = LocalTvColors.current.Muted,
         fontSize = 13.sp,
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
     )
@@ -313,7 +314,7 @@ private fun SettingsPairPage(
                     val qr = remember(current.deepLink) { qrBitmap(current.deepLink, 360) }
                     Text(
                         "Pindai QR di HP, atau ketik manual alamat dan kode di mode Kirim dari HP.",
-                        color = TvColors.Muted,
+                        color = LocalTvColors.current.Muted,
                         fontSize = 13.sp,
                         lineHeight = 19.sp,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
@@ -338,19 +339,19 @@ private fun SettingsPairPage(
                         }
                         Spacer(Modifier.width(18.dp))
                         Column {
-                            Text("KODE PAIRING", color = TvColors.Muted, fontSize = 12.sp)
+                            Text("KODE PAIRING", color = LocalTvColors.current.Muted, fontSize = 12.sp)
                             Text(
                                 current.link.code,
-                                color = TvColors.Text,
+                                color = LocalTvColors.current.Text,
                                 fontSize = 34.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 4.sp,
                             )
                             Spacer(Modifier.height(10.dp))
-                            Text("Alamat", color = TvColors.Muted, fontSize = 12.sp)
+                            Text("Alamat", color = LocalTvColors.current.Muted, fontSize = 12.sp)
                             Text(
                                 "${current.link.host}:${current.link.port}",
-                                color = TvColors.Text,
+                                color = LocalTvColors.current.Text,
                                 fontSize = 15.sp,
                             )
                         }
@@ -358,7 +359,7 @@ private fun SettingsPairPage(
                     Spacer(Modifier.height(8.dp))
                     Text(
                         "deep link: ${current.deepLink}",
-                        color = TvColors.Muted,
+                        color = LocalTvColors.current.Muted,
                         fontSize = 11.sp,
                         lineHeight = 16.sp,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -366,7 +367,7 @@ private fun SettingsPairPage(
                     detail?.let {
                         Text(
                             it,
-                            color = TvColors.Muted,
+                            color = LocalTvColors.current.Muted,
                             fontSize = 13.sp,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
                         )
@@ -375,7 +376,7 @@ private fun SettingsPairPage(
             PairingPhase.SUCCESS -> {
                 Text(
                     detail.orEmpty().ifBlank { "Pairing berhasil." },
-                    color = TvColors.Text,
+                    color = LocalTvColors.current.Text,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
@@ -388,7 +389,7 @@ private fun SettingsPairPage(
             PairingPhase.ERROR -> {
                 Text(
                     detail.orEmpty().ifBlank { "Pairing gagal." },
-                    color = TvColors.Muted,
+                    color = LocalTvColors.current.Muted,
                     fontSize = 13.sp,
                     lineHeight = 19.sp,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
@@ -402,7 +403,7 @@ private fun SettingsPairPage(
             PairingPhase.IDLE ->
                 Text(
                     "Menyiapkan pairing…",
-                    color = TvColors.Muted,
+                    color = LocalTvColors.current.Muted,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
                 )
@@ -470,7 +471,7 @@ private fun SettingsPairPage(
         result?.let {
             Text(
                 it,
-                color = TvColors.Muted,
+                color = LocalTvColors.current.Muted,
                 fontSize = 13.sp,
                 lineHeight = 19.sp,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
@@ -478,7 +479,7 @@ private fun SettingsPairPage(
         }
         Text(
             "Kirim memakai HTTPS? Tidak. Pairing ini hanya untuk jaringan lokal (debug) dan kode sekali pakai.",
-            color = TvColors.Muted,
+            color = LocalTvColors.current.Muted,
             fontSize = 11.sp,
             lineHeight = 16.sp,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -500,24 +501,24 @@ private fun TvPairInput(
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 5.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(TvColors.SurfaceHigh)
-            .border(1.dp, TvColors.Outline, RoundedCornerShape(14.dp))
+            .background(LocalTvColors.current.SurfaceHigh)
+            .border(1.dp, LocalTvColors.current.Outline, RoundedCornerShape(14.dp))
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, color = TvColors.Muted, fontSize = 14.sp, modifier = Modifier.width(76.dp))
+        Text(label, color = LocalTvColors.current.Muted, fontSize = 14.sp, modifier = Modifier.width(76.dp))
         Spacer(Modifier.width(10.dp))
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.weight(1f),
             singleLine = true,
-            textStyle = TextStyle(color = TvColors.Text, fontSize = 17.sp),
-            cursorBrush = SolidColor(TvColors.Accent),
+            textStyle = TextStyle(color = LocalTvColors.current.Text, fontSize = 17.sp),
+            cursorBrush = SolidColor(LocalTvColors.current.Accent),
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next),
             decorationBox = { inner ->
                 Box {
-                    if (value.isBlank()) Text(placeholder, color = TvColors.Muted, fontSize = 17.sp)
+                    if (value.isBlank()) Text(placeholder, color = LocalTvColors.current.Muted, fontSize = 17.sp)
                     inner()
                 }
             },
@@ -560,7 +561,7 @@ private fun SettingsDownloadsPage(
     if (downloads.isEmpty()) {
         Text(
             "Belum ada unduhan. Unduhan dibuat dari halaman episode.",
-            color = TvColors.Muted,
+            color = LocalTvColors.current.Muted,
             fontSize = 14.sp,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
         )
@@ -603,7 +604,7 @@ private fun SettingsDownloadsPage(
     Spacer(Modifier.height(8.dp))
     Text(
         "OK pada unduhan selesai untuk memutar. OK pada unduhan berjalan untuk membatalkan.",
-        color = TvColors.Muted,
+        color = LocalTvColors.current.Muted,
         fontSize = 13.sp,
         lineHeight = 19.sp,
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
@@ -626,7 +627,7 @@ private fun SettingsBackdropPage(focusRequester: FocusRequester) {
         ) { TvPrefs.setBackdrop(style) }
         Text(
             style.description,
-            color = TvColors.Muted,
+            color = LocalTvColors.current.Muted,
             fontSize = 12.sp,
             modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 6.dp),
         )
@@ -637,15 +638,24 @@ private fun SettingsBackdropPage(focusRequester: FocusRequester) {
 private fun SettingsDisplayPage(focusRequester: FocusRequester) {
     val settings by Appearance.settings.collectAsStateWithLifecycle()
 
-    TvSettingRow(
-        label = "Mode gelap",
-        value = "Selalu aktif di TV",
-        enabled = false,
-    ) {}
+    Text(
+        "Mode tema",
+        color = LocalTvColors.current.Muted,
+        fontSize = 13.sp,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+    )
+    listOf(ThemeMode.DARK, ThemeMode.LIGHT, ThemeMode.SYSTEM).forEachIndexed { index, mode ->
+        TvRadioRow(
+            label = mode.label,
+            selected = settings.mode == mode,
+            focusRequester = if (index == 0) focusRequester else null,
+        ) { Appearance.setMode(mode) }
+    }
+
+    Spacer(Modifier.height(12.dp))
     TvSettingRow(
         label = "Warna dinamis",
         toggle = settings.dynamicColor,
-        focusRequester = focusRequester,
     ) { Appearance.setDynamicColor(!settings.dynamicColor) }
     TvSettingRow(
         label = "Hitam AMOLED",
@@ -655,7 +665,7 @@ private fun SettingsDisplayPage(focusRequester: FocusRequester) {
     Spacer(Modifier.height(12.dp))
     Text(
         "Warna aksen",
-        color = TvColors.Muted,
+        color = LocalTvColors.current.Muted,
         fontSize = 13.sp,
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
     )
@@ -674,14 +684,14 @@ private fun SettingsAboutPage(focusRequester: FocusRequester) {
 
     Text(
         "AnimeX TV",
-        color = TvColors.Text,
+        color = LocalTvColors.current.Text,
         fontSize = 22.sp,
         fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
     )
     Text(
         "Versi ${BuildConfig.VERSION_NAME}",
-        color = TvColors.Muted,
+        color = LocalTvColors.current.Muted,
         fontSize = 14.sp,
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
     )
@@ -696,7 +706,7 @@ private fun SettingsAboutPage(focusRequester: FocusRequester) {
     if (updateState is AppUpdate.State.Error) {
         Text(
             (updateState as AppUpdate.State.Error).message,
-            color = TvColors.Muted,
+            color = LocalTvColors.current.Muted,
             fontSize = 13.sp,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
         )
@@ -704,7 +714,7 @@ private fun SettingsAboutPage(focusRequester: FocusRequester) {
     Spacer(Modifier.height(8.dp))
     Text(
         "Tampilan 10-foot untuk Android TV. Semua animasi dimatikan.",
-        color = TvColors.Muted,
+        color = LocalTvColors.current.Muted,
         fontSize = 13.sp,
         lineHeight = 19.sp,
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),

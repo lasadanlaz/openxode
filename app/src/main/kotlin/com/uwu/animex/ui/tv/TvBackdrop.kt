@@ -27,11 +27,12 @@ fun TvBackdrop(
     style: TvBackdropStyle,
     modifier: Modifier = Modifier,
 ) {
+    val colors = LocalTvColors.current
     val visibleStars = remember(style) { style == TvBackdropStyle.STARS || style == TvBackdropStyle.AURORA }
     Canvas(modifier.fillMaxSize()) {
         drawRect(
             Brush.linearGradient(
-                colors = listOf(TvColors.Background, TvColors.BackgroundLift, Color(0xFF08070B)),
+                colors = listOf(colors.Background, colors.BackgroundLift, colors.Background),
                 start = Offset.Zero,
                 end = Offset(size.width, size.height),
             ),
@@ -40,14 +41,14 @@ fun TvBackdrop(
 
         drawRect(
             Brush.radialGradient(
-                colors = listOf(Color(0x335D7A4C), Color(0x145D7A4C), Color.Transparent),
+                colors = listOf(colors.Accent.copy(alpha = 0.20f), colors.Accent.copy(alpha = 0.08f), Color.Transparent),
                 center = Offset(size.width * 0.74f, size.height * 0.02f),
                 radius = size.width * 0.56f,
             ),
         )
         drawRect(
             Brush.radialGradient(
-                colors = listOf(Color(0x2E5B447E), Color(0x0F5B447E), Color.Transparent),
+                colors = listOf(colors.Purple.copy(alpha = 0.18f), colors.Purple.copy(alpha = 0.06f), Color.Transparent),
                 center = Offset(size.width * 0.02f, size.height * 1.02f),
                 radius = size.width * 0.52f,
             ),
@@ -55,7 +56,7 @@ fun TvBackdrop(
         if (style == TvBackdropStyle.AURORA) {
             drawRect(
                 Brush.radialGradient(
-                    colors = listOf(Color(0x1F4C6E7A), Color.Transparent),
+                    colors = listOf(colors.Accent.copy(alpha = 0.12f), Color.Transparent),
                     center = Offset(size.width * 0.25f, size.height * 0.2f),
                     radius = size.width * 0.35f,
                 ),
@@ -65,7 +66,7 @@ fun TvBackdrop(
             stars.forEach { (x, y, ra) ->
                 val (r, a) = ra
                 drawCircle(
-                    color = Color.White.copy(alpha = a),
+                    color = colors.Text.copy(alpha = a),
                     radius = r,
                     center = Offset(size.width * x, size.height * y),
                 )

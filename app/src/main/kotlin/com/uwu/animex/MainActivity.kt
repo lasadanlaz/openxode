@@ -32,7 +32,6 @@ import com.uwu.animex.data.local.Onboarding
 import com.uwu.animex.data.local.PlayerPrefs
 import com.uwu.animex.data.local.Progress
 import com.uwu.animex.data.local.SearchHistory
-import com.uwu.animex.data.local.ThemeMode
 import com.uwu.animex.data.mal.Mal
 import com.uwu.animex.data.tracker.SyncSourcePref
 import com.uwu.animex.data.update.AppUpdate
@@ -42,6 +41,7 @@ import com.uwu.animex.ui.navigation.NotificationRouter
 import com.uwu.animex.ui.background.BackgroundType
 import com.uwu.animex.ui.player.PipHelper
 import com.uwu.animex.ui.theme.AppTheme
+import com.uwu.animex.ui.theme.rememberAppDarkTheme
 import com.uwu.animex.ui.tv.TvPrefs
 
 class MainActivity : ComponentActivity() {
@@ -50,7 +50,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         Appearance.init(this)
-        if (Appearance.settings.value.mode != ThemeMode.DARK) Appearance.setMode(ThemeMode.DARK)
         if (Appearance.settings.value.backgroundType != BackgroundType.NONE) {
             Appearance.setBackgroundType(BackgroundType.NONE)
         }
@@ -84,17 +83,21 @@ class MainActivity : ComponentActivity() {
         handleAnimeLink(intent)
         setContent {
             val settings by Appearance.settings.collectAsStateWithLifecycle()
-            DisposableEffect(Unit) {
-                enableEdgeToEdge(
-                    statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
-                    navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
-                )
+            val darkTheme = rememberAppDarkTheme(settings.mode)
+            DisposableEffect(darkTheme) {
+                val barStyle =
+                    if (darkTheme) {
+                        SystemBarStyle.dark(Color.TRANSPARENT)
+                    } else {
+                        SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+                    }
+                enableEdgeToEdge(statusBarStyle = barStyle, navigationBarStyle = barStyle)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     window.isNavigationBarContrastEnforced = false
                 }
                 onDispose {}
             }
-            AppTheme(settings = settings, darkTheme = true) {
+            AppTheme(settings = settings, darkTheme = darkTheme) {
                 val windowBg = MaterialTheme.colorScheme.background
                 SideEffect { window.setBackgroundDrawable(ColorDrawable(windowBg.toArgb())) }
                 App()
