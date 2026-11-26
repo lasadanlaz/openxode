@@ -165,23 +165,23 @@ fun TvRailItem(
     Row(
         modifier =
             Modifier
-                .height(40.dp)
-                .width(if (expanded) TvDimens.RailWidth else 52.dp)
+                .height(54.dp)
+                .width(if (expanded) TvDimens.RailWidth else 76.dp)
                 .clip(RoundedCornerShape(50))
                 .background(background)
                 .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
                 .clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick)
-                .padding(horizontal = if (expanded) 12.dp else 0.dp),
+                .padding(horizontal = if (expanded) 16.dp else 0.dp),
         horizontalArrangement = if (expanded) Arrangement.Start else Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = label, tint = content, modifier = Modifier.size(22.dp))
+        Icon(icon, contentDescription = label, tint = content, modifier = Modifier.size(34.dp))
         if (expanded) {
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(14.dp))
             Text(
                 label,
                 color = content,
-                fontSize = 14.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
             )
@@ -215,9 +215,8 @@ fun TvRail(
 
     Column(
         Modifier
-            .fillMaxHeight()
-            .padding(horizontal = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
+            .fillMaxHeight(),
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.Start,
     ) {
         entries.forEach { entry ->

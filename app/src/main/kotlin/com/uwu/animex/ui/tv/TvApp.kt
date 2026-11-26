@@ -144,24 +144,22 @@ fun TvApp() {
                 lastBackAt = 0L
                 focusContent()
             }
-            tab == TvTab.HOME -> {
+            railFocused -> {
+                lastBackAt = 0L
+                focusContent()
+            }
+            else -> {
+                // Tekan Back dua kali (< 2500 ms) untuk memunculkan dialog keluar.
+                // Berlaku di semua tab, bukan hanya Beranda.
                 focusContent()
                 val now = SystemClock.uptimeMillis()
-                Log.d("TvAppBack", "HOME delta=${now - lastBackAt}")
+                Log.d("TvAppBack", "tab=$tab delta=${now - lastBackAt}")
                 if (now - lastBackAt < 2500L) {
                     showExitDialog = true
                     lastBackAt = 0L
                 } else {
                     lastBackAt = now
                 }
-            }
-            railFocused -> {
-                lastBackAt = 0L
-                focusContent()
-            }
-            else -> {
-                lastBackAt = 0L
-                activity?.finish()
             }
         }
     }

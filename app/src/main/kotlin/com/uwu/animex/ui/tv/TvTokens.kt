@@ -83,13 +83,13 @@ internal val LocalTvColors = compositionLocalOf { TvColorsDark }
 
 internal object TvDimens {
     /** Lebar item rail saat fokus berada di rail (label ditampilkan). */
-    val RailWidth = 140.dp
+    val RailWidth = 176.dp
 
     /** Lebar total rail saat fokus di konten (hanya ikon). */
-    val RailCollapsedWidth = 60.dp
+    val RailCollapsedWidth = 84.dp
 
     /** Lebar total rail saat fokus di rail (label ditampilkan). */
-    val RailExpandedWidth = 148.dp
+    val RailExpandedWidth = 184.dp
 
     /** Jarak konten dari tepi area konten; rail mendorong area ini saat melebar. */
     val ContentStart = 12.dp
