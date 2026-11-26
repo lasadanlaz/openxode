@@ -215,6 +215,7 @@ fun PlayerChrome(
     compact: Boolean = false,
     minimized: Boolean = false,
     tvMode: Boolean = false,
+    panelsOpen: Boolean = false,
     onToggleFullscreen: () -> Unit = {},
     onPullDownDelta: ((Float) -> Unit)? = null,
     onPullDownEnd: ((Boolean) -> Unit)? = null,
@@ -319,8 +320,8 @@ fun PlayerChrome(
         if (tvMode && !minimized) runCatching { tvRootFocus.requestFocus() }
     }
 
-    LaunchedEffect(tvMode, minimized, visible) {
-        if (tvMode && !minimized && visible) runCatching { tvPlayFocus.requestFocus() }
+    LaunchedEffect(tvMode, minimized, visible, panelsOpen) {
+        if (tvMode && !minimized && visible && !panelsOpen) runCatching { tvPlayFocus.requestFocus() }
     }
 
     LaunchedEffect(sleepDeadlineMs) {
@@ -548,8 +549,17 @@ fun PlayerChrome(
         PlayerPrefs.controlsTimeoutMs.value,
         tvMode,
         tvControlFocused,
+        panelsOpen,
     ) {
-        if (visible && !minimized && isPlaying && scrubPos == null && !locked && !(tvMode && tvControlFocused)) {
+        if (
+            visible &&
+            !minimized &&
+            isPlaying &&
+            scrubPos == null &&
+            !locked &&
+            !(tvMode && tvControlFocused) &&
+            !panelsOpen
+        ) {
             val timeout = PlayerPrefs.controlsTimeoutMs.value
                 .toLong()
                 .coerceAtLeast(500L)
@@ -796,6 +806,8 @@ fun PlayerChrome(
                 .focusable()
                 .onKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                    // Saat panel (kualitas/episode/kecepatan/timer) tampil, tombol dikirim ke panel itu.
+                    if (panelsOpen) return@onKeyEvent false
                     when (event.key) {
                         Key.DirectionCenter,
                         Key.Enter,
