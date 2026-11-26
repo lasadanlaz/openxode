@@ -144,6 +144,7 @@ fun TvRailItem(
     label: String,
     icon: ImageVector,
     selected: Boolean,
+    expanded: Boolean = false,
     enabled: Boolean = true,
     focusRequester: FocusRequester? = null,
     onFocus: (Boolean) -> Unit = {},
@@ -153,8 +154,7 @@ fun TvRailItem(
     val focused by interaction.collectIsFocusedAsState()
     LaunchedEffect(focused) { onFocus(focused) }
     val colors = LocalTvColors.current
-    val expanded = enabled && focused
-    val highlighted = expanded
+    val highlighted = enabled && focused
     val background = if (highlighted) colors.FocusFill else Color.Transparent
     val content =
         when {
@@ -165,23 +165,23 @@ fun TvRailItem(
     Row(
         modifier =
             Modifier
-                .height(52.dp)
+                .height(34.dp)
                 .width(if (expanded) TvDimens.RailWidth else 52.dp)
                 .clip(RoundedCornerShape(50))
                 .background(background)
                 .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
                 .clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick)
-                .padding(horizontal = if (expanded) 16.dp else 0.dp),
+                .padding(horizontal = if (expanded) 12.dp else 0.dp),
         horizontalArrangement = if (expanded) Arrangement.Start else Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = label, tint = content, modifier = Modifier.size(22.dp))
+        Icon(icon, contentDescription = label, tint = content, modifier = Modifier.size(18.dp))
         if (expanded) {
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(10.dp))
             Text(
                 label,
                 color = content,
-                fontSize = 16.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
             )
@@ -197,6 +197,7 @@ fun TvRail(
     onSettings: () -> Unit,
     focusRequesters: Map<TvTab, FocusRequester>,
     enabled: Boolean = true,
+    expanded: Boolean = false,
     onFocusChange: (Boolean) -> Unit = {},
 ) {
     var focusedTab by remember { mutableStateOf<TvTab?>(null) }
@@ -216,7 +217,7 @@ fun TvRail(
         Modifier
             .fillMaxHeight()
             .padding(horizontal = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
+        verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.Start,
     ) {
         entries.forEach { entry ->
@@ -224,6 +225,7 @@ fun TvRail(
                 label = entry.label,
                 icon = entry.icon,
                 selected = selected == entry.tab,
+                expanded = expanded,
                 enabled = enabled,
                 focusRequester = focusRequesters[entry.tab],
                 onFocus = { focused ->
@@ -240,6 +242,7 @@ fun TvRail(
             label = "Setelan",
             icon = Icons.Outlined.Settings,
             selected = false,
+            expanded = expanded,
             enabled = enabled,
             onFocus = { focused -> settingsFocused = focused && enabled },
             onClick = { if (enabled) onSettings() },

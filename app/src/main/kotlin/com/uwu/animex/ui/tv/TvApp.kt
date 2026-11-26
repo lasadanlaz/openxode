@@ -10,11 +10,13 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -38,6 +40,7 @@ import com.uwu.animex.ui.theme.rememberAppDarkTheme
 
 private val tvRailEntries =
     listOf(
+        TvRailEntry(TvTab.SEARCH, "Cari", Icons.Outlined.Search),
         TvRailEntry(TvTab.HOME, "Beranda", Icons.Outlined.Home),
         TvRailEntry(TvTab.SCHEDULE, "Jadwal", Icons.Outlined.DateRange),
         TvRailEntry(TvTab.EXPLORE, "Explore", Icons.Outlined.Explore),
@@ -120,7 +123,11 @@ fun TvApp() {
         Box(Modifier.fillMaxSize().background(LocalTvColors.current.Background)) {
             TvBackdrop(style = backdrop)
 
-            Box(Modifier.fillMaxSize()) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(start = if (railFocused) TvDimens.ContentStartExpanded - TvDimens.ContentStart else 0.dp),
+            ) {
                 // Tiny focus anchor at the content edge. Keeps LEFT navigation able to
                 // reach the rail (a full-screen focusable Box would overlap it and trap focus).
                 Box(
@@ -181,16 +188,23 @@ fun TvApp() {
                     entries = tvRailEntries,
                     selected = tab,
                     onSelect = { target ->
-                        if (target != tab) {
+                        if (target == TvTab.SEARCH) {
                             detailId = null
-                            showSearch = false
+                            searchQuery = ""
+                            showSearch = true
+                        } else {
+                            if (target != tab) {
+                                detailId = null
+                                showSearch = false
+                            }
+                            tab = target
+                            focusContent(target)
                         }
-                        tab = target
-                        focusContent(target)
                     },
                     onSettings = { showSettings = true },
                     focusRequesters = tabFocus,
                     enabled = railEnabled,
+                    expanded = railFocused,
                     onFocusChange = { railFocused = it },
                 )
             }
