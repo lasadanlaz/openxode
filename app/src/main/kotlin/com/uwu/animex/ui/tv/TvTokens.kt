@@ -35,7 +35,7 @@ internal object TvDimens {
     val ContentEnd = 28.dp
     val ContentTop = 40.dp
     val ContentBottom = 62.dp
-    val CardWidth = 114.dp
+    val CardWidth = 150.dp
     val CardGap = 10.dp
     val GridGapX = 10.dp
     val GridGapY = 18.dp

@@ -12,6 +12,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -23,13 +24,14 @@ import com.uwu.animex.ui.viewmodel.HomeViewModel
 fun TvHomeScreen(
     onOpen: (String) -> Unit,
     onSearch: (String) -> Unit,
+    listFocusRequester: FocusRequester? = null,
     viewModel: HomeViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { viewModel.revalidate() }
 
     when (val s = state) {
-        is UiState.Ready -> TvHomeContent(s.value, onOpen, onSearch)
+        is UiState.Ready -> TvHomeContent(s.value, onOpen, onSearch, listFocusRequester)
         is UiState.Error -> TvErrorState(s.msg, onRetry = { viewModel.refresh() })
         else -> TvLoading()
     }
@@ -40,6 +42,7 @@ private fun TvHomeContent(
     data: HomeData,
     onOpen: (String) -> Unit,
     onSearch: (String) -> Unit,
+    listFocusRequester: FocusRequester? = null,
 ) {
     val rows =
         remember(data) {
@@ -77,11 +80,12 @@ private fun TvHomeContent(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(TvDimens.SectionGap),
         ) {
-            rows.forEach { (title, movies) ->
+            rows.forEachIndexed { rowIndex, (title, movies) ->
                 TvPosterRow(
                     title = title,
                     movies = movies,
                     onOpen = { movie -> movie.id?.let(onOpen) },
+                    firstCardFocusRequester = if (rowIndex == 0) listFocusRequester else null,
                 )
             }
         }

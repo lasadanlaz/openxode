@@ -22,6 +22,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -42,6 +43,7 @@ fun TvSearchScreen(
     viewModel: SearchViewModel = viewModel(),
 ) {
     val scope = rememberCoroutineScope()
+    val searchFocus = remember { FocusRequester() }
     BackHandler(onBack = onBack)
     val history by SearchHistory.items.collectAsStateWithLifecycle()
     val suggestionsState by viewModel.suggestions.collectAsStateWithLifecycle()
@@ -100,6 +102,7 @@ fun TvSearchScreen(
             },
             onSubmit = { submit() },
             modifier = Modifier.fillMaxWidth(),
+            focusRequester = searchFocus,
         )
 
         Spacer(Modifier.height(20.dp))

@@ -19,7 +19,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,24 +43,25 @@ private val tvRailTabs = tvRailEntries.map { it.tab }.toSet()
 @Composable
 fun TvApp() {
     val backdrop by TvPrefs.backdrop.collectAsStateWithLifecycle()
-    var tab by rememberSaveable { mutableStateOf(TvTab.HOME) }
+    var tab by remember { mutableStateOf(TvTab.HOME) }
     var railExpanded by remember { mutableStateOf(false) }
-    var detailId by rememberSaveable { mutableStateOf<String?>(null) }
-    var showSettings by rememberSaveable { mutableStateOf(false) }
-    var showSearch by rememberSaveable { mutableStateOf(false) }
-    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var detailId by remember { mutableStateOf<String?>(null) }
+    var showSettings by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
     val context = LocalContext.current
     val tabFocus = remember { TvTab.entries.associateWith { FocusRequester() } }
+    val homeListFocus = remember { FocusRequester() }
     fun focusTab(target: TvTab) {
         tabFocus[target]?.requestFocus()
     }
     fun focusCurrentTab() {
-        focusTab(if (tab in tvRailTabs) tab else TvTab.HOME)
-    }
-    val initialTab = rememberSaveable { tab }
-    LaunchedEffect(Unit) {
-        tab = initialTab
-        focusTab(initialTab)
+        val current = if (tab in tvRailTabs) tab else TvTab.HOME
+        if (current == TvTab.HOME) {
+            homeListFocus.requestFocus()
+        } else {
+            focusTab(current)
+        }
     }
 
     val pendingDetail by NotificationRouter.pendingDetail.collectAsStateWithLifecycle()
@@ -146,8 +146,18 @@ fun TvApp() {
                 )
             } else {
                 when (tab) {
-                    TvTab.SEARCH -> TvHomeScreen(onOpen = openDetail, onSearch = openSearch)
-                    TvTab.HOME -> TvHomeScreen(onOpen = openDetail, onSearch = openSearch)
+                    TvTab.SEARCH ->
+                        TvHomeScreen(
+                            onOpen = openDetail,
+                            onSearch = openSearch,
+                            listFocusRequester = homeListFocus,
+                        )
+                    TvTab.HOME ->
+                        TvHomeScreen(
+                            onOpen = openDetail,
+                            onSearch = openSearch,
+                            listFocusRequester = homeListFocus,
+                        )
                     TvTab.SCHEDULE -> TvScheduleScreen(onOpen = openDetail)
                     TvTab.EXPLORE -> TvExploreScreen(onOpen = openDetail)
                     TvTab.LIBRARY -> TvLibraryScreen(onOpen = openDetail)

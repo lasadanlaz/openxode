@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -252,15 +253,24 @@ fun TvPosterCard(
     modifier: Modifier = Modifier,
     badge: String? = null,
     onFocused: (() -> Unit)? = null,
+    focusRequester: FocusRequester? = null,
     onClick: () -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val domain = Api.activeDomain
     val poster = remember(movie.image_poster, domain) { Api.absUrl(movie.image_poster) }
+    LaunchedEffect(focusRequester) { focusRequester?.requestFocus() }
     Column(modifier) {
         Box(
             Modifier
+                .then(
+                    if (focusRequester != null) {
+                        Modifier.focusRequester(focusRequester)
+                    } else {
+                        Modifier
+                    },
+                )
                 .fillMaxWidth()
                 .aspectRatio(2f / 3f)
                 .clip(RoundedCornerShape(14.dp))
@@ -309,12 +319,12 @@ fun TvPosterCard(
         Text(
             movie.title.orEmpty(),
             color = TvColors.Text,
-            fontSize = 13.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 2,
             minLines = 2,
             overflow = TextOverflow.Ellipsis,
-            lineHeight = 16.sp,
+            lineHeight = 17.sp,
         )
     }
 }
@@ -325,6 +335,7 @@ fun TvPosterRow(
     movies: List<Movie>,
     onOpen: (Movie) -> Unit,
     onFocused: (Movie) -> Unit = {},
+    firstCardFocusRequester: FocusRequester? = null,
 ) {
     val unique = remember(movies) { movies.filter { !it.id.isNullOrBlank() }.distinctBy { it.id } }
     if (unique.isEmpty()) return
@@ -335,12 +346,13 @@ fun TvPosterRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(TvDimens.CardGap),
         ) {
-            items(unique, key = { it.id ?: it.title.orEmpty() }) { movie ->
+            itemsIndexed(unique, key = { _, movie -> movie.id ?: movie.title.orEmpty() }) { index, movie ->
                 TvPosterCard(
                     movie = movie,
                     modifier = Modifier.width(TvDimens.CardWidth),
                     badge = movie.episode_index?.takeIf { it.isNotBlank() }?.let { "Ep $it" },
                     onFocused = { onFocused(movie) },
+                    focusRequester = if (index == 0) firstCardFocusRequester else null,
                 ) { onOpen(movie) }
             }
         }
@@ -443,12 +455,14 @@ fun TvSearchBar(
     onSubmit: () -> Unit,
     modifier: Modifier = Modifier,
     readOnly: Boolean = false,
+    focusRequester: FocusRequester? = null,
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
     val interaction = remember { MutableInteractionSource() }
     val rowFocused by interaction.collectIsFocusedAsState()
     var fieldFocused by remember { mutableStateOf(false) }
     val focused = if (readOnly) rowFocused else fieldFocused
+    LaunchedEffect(focusRequester) { focusRequester?.requestFocus() }
     Row(
         modifier
             .clip(RoundedCornerShape(50))
@@ -460,7 +474,13 @@ fun TvSearchBar(
             )
             .then(
                 if (readOnly) {
-                    Modifier.clickable(
+                    val focus =
+                        if (focusRequester != null) {
+                            Modifier.focusRequester(focusRequester)
+                        } else {
+                            Modifier
+                        }
+                    focus.clickable(
                         interactionSource = interaction,
                         indication = null,
                         onClick = onSubmit,
@@ -487,6 +507,13 @@ fun TvSearchBar(
                 onValueChange = onValueChange,
                 modifier =
                     Modifier
+                        .then(
+                            if (focusRequester != null) {
+                                Modifier.focusRequester(focusRequester)
+                            } else {
+                                Modifier
+                            },
+                        )
                         .weight(1f)
                         .onFocusChanged { fieldFocused = it.isFocused },
                 singleLine = true,
@@ -599,7 +626,7 @@ fun TvMovieGrid(
     onOpen: (Movie) -> Unit,
 ) {
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(100.dp),
+        columns = GridCells.Adaptive(150.dp),
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(TvDimens.GridGapX),
         verticalArrangement = Arrangement.spacedBy(TvDimens.GridGapY),
