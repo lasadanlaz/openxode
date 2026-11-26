@@ -214,7 +214,6 @@ fun TvRail(
 
     Column(
         Modifier
-            .width(TvDimens.RailCollapsedWidth)
             .fillMaxHeight()
             .padding(horizontal = 14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
