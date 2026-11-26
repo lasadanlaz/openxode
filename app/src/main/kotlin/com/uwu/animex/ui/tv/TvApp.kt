@@ -28,6 +28,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.uwu.animex.core.pairing.PairingLink
+import com.uwu.animex.core.pairing.PairingRouter
 import com.uwu.animex.ui.navigation.NotificationRouter
 import com.uwu.animex.ui.player.MiniPlayerController
 import com.uwu.animex.ui.player.PlayerHost
@@ -48,6 +50,7 @@ fun TvApp() {
     var railExpanded by remember { mutableStateOf(false) }
     var detailId by rememberSaveable { mutableStateOf<String?>(null) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var pairPrefill by remember { mutableStateOf<PairingLink?>(null) }
     val context = LocalContext.current
     val homeFocus = remember { FocusRequester() }
 
@@ -71,6 +74,15 @@ fun TvApp() {
             epIndex = link.epIndex,
             startAtMs = link.startAtMs,
         )
+    }
+
+    val pendingPair by PairingRouter.pending.collectAsStateWithLifecycle()
+    LaunchedEffect(pendingPair) {
+        val link = pendingPair ?: return@LaunchedEffect
+        PairingRouter.pending.value = null
+        detailId = null
+        pairPrefill = link
+        showSettings = true
     }
 
     BackHandler {
@@ -142,8 +154,11 @@ fun TvApp() {
 
         if (showSettings) {
             TvSettingsOverlay(
+                initialPair = pairPrefill,
+                onPairConsumed = { pairPrefill = null },
                 onDismiss = {
                     showSettings = false
+                    pairPrefill = null
                     homeFocus.requestFocus()
                 },
             )

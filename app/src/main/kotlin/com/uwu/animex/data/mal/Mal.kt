@@ -19,6 +19,7 @@ import com.uwu.animex.data.tracker.SubmitResult
 import com.uwu.animex.data.tracker.TrackerOutbox
 import com.uwu.animex.data.tracker.TrackerSource
 import com.uwu.animex.sync.AccountManager
+import com.uwu.animex.sync.AuthData
 import com.uwu.animex.sync.SyncResult
 import com.uwu.animex.sync.SyncStatus
 import com.uwu.animex.sync.SyncWatchType
@@ -123,6 +124,20 @@ object Mal {
     fun updateAutoSync(value: Boolean) {
         _autoSync.value = value
         prefs?.edit()?.putBoolean(PrefKeys.Mal.AUTO_SYNC, value)?.apply()
+    }
+
+    /** Dipakai pairing: menerima sesi MAL dari perangkat lain tanpa OAuth ulang. */
+    fun importAuth(data: AuthData) {
+        AccountManager.save("mal", data)
+        repo.requireLibraryRefresh = true
+        _loggedIn.value = true
+        notFound.clear()
+        _user.value = data.user
+        updateAutoSync(true)
+        scope.launch {
+            runCatching { refreshUser() }
+            runCatching { MalLibrary.refresh(force = true) }
+        }
     }
 
     fun startLogin(context: Context) {

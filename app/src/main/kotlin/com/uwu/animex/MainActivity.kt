@@ -18,6 +18,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.uwu.animex.core.notification.AppNotifier
+import com.uwu.animex.core.pairing.PairingLink
+import com.uwu.animex.core.pairing.PairingRouter
 import com.uwu.animex.data.anilist.AniList
 import com.uwu.animex.data.download.Downloads
 import com.uwu.animex.data.local.Appearance
@@ -82,6 +84,7 @@ class MainActivity : ComponentActivity() {
         EpisodeAlerts.init(this)
         AppUpdate.init(this)
         handleMalRedirect(intent)
+        handlePairLink(intent)
         handleNotificationIntent(intent)
         handleAnimeLink(intent)
         setContent {
@@ -108,6 +111,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleMalRedirect(intent)
+        handlePairLink(intent)
         handleNotificationIntent(intent)
         handleAnimeLink(intent)
     }
@@ -186,6 +190,16 @@ class MainActivity : ComponentActivity() {
         intent.data = null
         if (isMal) Mal.handleRedirect(uri)
         if (isAniList) AniList.handleRedirect(uri)
+    }
+
+    private fun handlePairLink(intent: Intent?) {
+        val uri = intent?.data ?: return
+        if (uri.scheme?.lowercase() != "animex" || uri.host?.lowercase() != "pair") return
+        val host = uri.getQueryParameter("host")?.trim().takeIf { !it.isNullOrBlank() } ?: return
+        val port = uri.getQueryParameter("port")?.toIntOrNull()?.takeIf { it in 1..65535 } ?: 8787
+        val code = uri.getQueryParameter("code")?.trim()?.takeIf { it.isNotBlank() } ?: return
+        intent.data = null
+        PairingRouter.pending.value = PairingLink(host, port, code)
     }
 
     override fun onUserLeaveHint() {

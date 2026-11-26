@@ -71,6 +71,7 @@ android {
             "DEFAULT_ACCOUNT_PASS",
             "\"${mask(secret("ANIMEIN_DEFAULT_PASS", "animein.default.pass"))}\"",
         )
+        manifestPlaceholders["usesCleartextTraffic"] = "false"
 
         externalNativeBuild {
             cmake {
@@ -114,6 +115,8 @@ android {
     buildTypes {
         debug {
             signingConfig = signingConfigs.getByName("debug")
+            // Pairing LAN memakai http://IP-TV; rilis tetap menolak cleartext.
+            manifestPlaceholders["usesCleartextTraffic"] = "true"
         }
         release {
             isMinifyEnabled = true
@@ -171,6 +174,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:5.5.1")
     implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:5.5.1")
     implementation("com.google.code.gson:gson:2.15.0")
+    implementation("com.google.zxing:core:3.5.3")
     implementation("androidx.work:work-runtime-ktx:2.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("androidx.media3:media3-exoplayer:1.11.1")

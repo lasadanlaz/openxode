@@ -51,6 +51,8 @@ jobs:
       - name: Build debug APK
         env:
           API_GATE_URL: ${{ secrets.API_GATE_URL }}
+          MAL_KEY: ${{ secrets.MAL_KEY }}
+          ANILIST_KEY: ${{ secrets.ANILIST_KEY }}
         run: gradle --no-daemon assembleDebug --stacktrace
 
       - name: Upload debug APK
