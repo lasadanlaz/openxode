@@ -168,10 +168,9 @@ fun TvRailItem(
                 .width(if (expanded) TvDimens.RailWidth else 52.dp)
                 .clip(RoundedCornerShape(50))
                 .background(background)
-                .focusable(enabled)
                 .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-                .onFocusChanged { onFocus(it.isFocused) }
                 .clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick)
+                .onFocusChanged { onFocus(it.isFocused) }
                 .padding(horizontal = if (expanded) 16.dp else 0.dp),
         horizontalArrangement = if (expanded) Arrangement.Start else Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
