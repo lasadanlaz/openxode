@@ -152,6 +152,7 @@ fun TvRailItem(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
+    LaunchedEffect(focused) { onFocus(focused) }
     val colors = LocalTvColors.current
     val highlighted = enabled && focused
     val background = if (highlighted) colors.FocusFill else Color.Transparent
@@ -170,7 +171,6 @@ fun TvRailItem(
                 .background(background)
                 .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
                 .clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick)
-                .onFocusChanged { onFocus(it.isFocused) }
                 .padding(horizontal = if (expanded) 16.dp else 0.dp),
         horizontalArrangement = if (expanded) Arrangement.Start else Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
