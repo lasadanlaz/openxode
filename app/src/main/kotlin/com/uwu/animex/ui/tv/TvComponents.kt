@@ -152,13 +152,9 @@ fun TvRailItem(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
-    val highlighted = enabled && (focused || (selected && !expanded))
     val colors = LocalTvColors.current
-    val background =
-        when {
-            highlighted -> colors.FocusFill
-            else -> Color.Transparent
-        }
+    val highlighted = enabled && focused
+    val background = if (highlighted) colors.FocusFill else Color.Transparent
     val content =
         when {
             highlighted -> colors.FocusContent
@@ -169,7 +165,7 @@ fun TvRailItem(
         modifier =
             Modifier
                 .height(52.dp)
-                .then(if (expanded) Modifier.fillMaxWidth() else Modifier.width(52.dp))
+                .width(if (expanded) TvDimens.RailWidth else 52.dp)
                 .clip(RoundedCornerShape(50))
                 .background(background)
                 .focusable(enabled)
@@ -202,25 +198,25 @@ fun TvRail(
     onSettings: () -> Unit,
     focusRequesters: Map<TvTab, FocusRequester>,
     enabled: Boolean = true,
-    onExpandedChange: (Boolean) -> Unit = {},
+    onFocusChange: (Boolean) -> Unit = {},
 ) {
     var focusedTab by remember { mutableStateOf<TvTab?>(null) }
     var settingsFocused by remember { mutableStateOf(false) }
-    val expanded = enabled && (focusedTab != null || settingsFocused)
 
-    LaunchedEffect(expanded) { onExpandedChange(expanded) }
     LaunchedEffect(enabled) {
         if (!enabled) {
             focusedTab = null
             settingsFocused = false
         }
     }
+    LaunchedEffect(focusedTab, settingsFocused) {
+        onFocusChange(enabled && (focusedTab != null || settingsFocused))
+    }
 
     Column(
         Modifier
-            .width(if (expanded) TvDimens.RailWidth else TvDimens.RailCollapsedWidth)
+            .width(TvDimens.RailCollapsedWidth)
             .fillMaxHeight()
-            .background(if (expanded) LocalTvColors.current.Rail else Color.Transparent)
             .padding(horizontal = 14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.Start,
@@ -230,13 +226,12 @@ fun TvRail(
                 label = entry.label,
                 icon = entry.icon,
                 selected = selected == entry.tab,
-                expanded = expanded,
+                expanded = enabled && focusedTab == entry.tab,
                 enabled = enabled,
                 focusRequester = focusRequesters[entry.tab],
                 onFocus = { focused ->
                     if (focused && enabled) {
                         focusedTab = entry.tab
-                        onSelect(entry.tab)
                     } else if (!focused && focusedTab == entry.tab) {
                         focusedTab = null
                     }
@@ -248,12 +243,9 @@ fun TvRail(
             label = "Setelan",
             icon = Icons.Outlined.Settings,
             selected = false,
-            expanded = expanded,
+            expanded = enabled && settingsFocused,
             enabled = enabled,
-            onFocus = { focused ->
-                settingsFocused = focused && enabled
-                if (focused && enabled) onSettings()
-            },
+            onFocus = { settingsFocused = focused && enabled },
             onClick = { if (enabled) onSettings() },
         )
     }

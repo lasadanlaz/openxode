@@ -6,9 +6,9 @@ import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.Explore
@@ -24,8 +24,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.uwu.animex.data.local.Appearance
 import com.uwu.animex.ui.navigation.NotificationRouter
@@ -41,8 +41,6 @@ private val tvRailEntries =
         TvRailEntry(TvTab.LIBRARY, "Pustaka", Icons.Outlined.VideoLibrary),
     )
 
-private val tvRailTabs = tvRailEntries.map { it.tab }.toSet()
-
 @Composable
 fun TvApp() {
     val backdrop by TvPrefs.backdrop.collectAsStateWithLifecycle()
@@ -50,7 +48,7 @@ fun TvApp() {
     val darkTheme = rememberAppDarkTheme(settings.mode)
     val tvColors = if (darkTheme) TvColorsDark else TvColorsLight
     var tab by remember { mutableStateOf(TvTab.HOME) }
-    var railExpanded by remember { mutableStateOf(false) }
+    var railFocused by remember { mutableStateOf(false) }
     var detailId by remember { mutableStateOf<String?>(null) }
     var showSettings by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
@@ -58,17 +56,14 @@ fun TvApp() {
     val context = LocalContext.current
     val tabFocus = remember { TvTab.entries.associateWith { FocusRequester() } }
     val homeListFocus = remember { FocusRequester() }
+    val contentFocus = remember { FocusRequester() }
     val railEnabled = detailId == null && !showSearch && !showSettings && !MiniPlayerController.expanded
 
-    fun focusTab(target: TvTab) {
-        tabFocus[target]?.requestFocus()
-    }
-    fun focusCurrentTab() {
-        val current = if (tab in tvRailTabs) tab else TvTab.HOME
-        if (current == TvTab.HOME) {
+    fun focusContent(target: TvTab = tab) {
+        if (target == TvTab.HOME || target == TvTab.SEARCH) {
             homeListFocus.requestFocus()
         } else {
-            focusTab(current)
+            contentFocus.requestFocus()
         }
     }
 
@@ -101,18 +96,18 @@ fun TvApp() {
             MiniPlayerController.expanded -> MiniPlayerController.minimize()
             showSettings -> {
                 showSettings = false
-                focusCurrentTab()
+                focusContent()
             }
             showSearch -> {
                 showSearch = false
-                focusCurrentTab()
+                focusContent()
             }
             detailId != null -> {
                 detailId = null
-                focusCurrentTab()
+                focusContent()
             }
-            railExpanded -> (context as? Activity)?.finish()
-            else -> focusCurrentTab()
+            railFocused -> focusContent()
+            else -> (context as? Activity)?.finish()
         }
     }
 
@@ -123,11 +118,8 @@ fun TvApp() {
             Box(
                 Modifier
                     .fillMaxSize()
-                    .padding(
-                        start =
-                            if (railExpanded) TvDimens.ContentStartExpanded - TvDimens.ContentStart
-                            else 0.dp,
-                    )
+                    .focusable()
+                    .focusRequester(contentFocus),
             ) {
                 val openDetail: (String) -> Unit = { id -> if (id.isNotBlank()) detailId = id }
                 val openSearch: (String) -> Unit = { query ->
@@ -140,7 +132,7 @@ fun TvApp() {
                         id = id,
                         onBack = {
                             detailId = null
-                            focusCurrentTab()
+                            focusContent()
                         },
                         onOpen = openDetail,
                     )
@@ -150,7 +142,7 @@ fun TvApp() {
                         onOpen = openDetail,
                         onBack = {
                             showSearch = false
-                            focusCurrentTab()
+                            focusContent()
                         },
                     )
                 } else {
@@ -184,11 +176,12 @@ fun TvApp() {
                             showSearch = false
                         }
                         tab = target
+                        focusContent(target)
                     },
                     onSettings = { showSettings = true },
                     focusRequesters = tabFocus,
                     enabled = railEnabled,
-                    onExpandedChange = { railExpanded = it },
+                    onFocusChange = { railFocused = it },
                 )
             }
 
@@ -196,7 +189,7 @@ fun TvApp() {
                 TvSettingsOverlay(
                     onDismiss = {
                         showSettings = false
-                        focusCurrentTab()
+                        focusContent()
                     },
                 )
             }
