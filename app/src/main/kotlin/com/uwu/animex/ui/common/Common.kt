@@ -1,0 +1,188 @@
+package com.uwu.animex.ui.common
+
+import android.content.res.Configuration
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.uwu.animex.core.network.ConnectivityMonitor
+import top.yukonga.miuix.kmp.blur.LayerBackdrop
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+
+sealed interface UiState<out T> {
+    data object Loading : UiState<Nothing>
+
+    data class Error(
+        val msg: String,
+    ) : UiState<Nothing>
+
+    data class Ready<T>(
+        val value: T,
+    ) : UiState<T>
+}
+
+private val loadResultCache =
+
+    object : LinkedHashMap<Any, Any?>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Any, Any?>?): Boolean = size > 24
+    }
+
+private val loadLock = Any()
+
+fun clearLoadCache() {
+    synchronized(loadLock) { loadResultCache.clear() }
+}
+
+@Composable
+fun CenterText(
+    text: String,
+    color: Color = Color.Unspecified,
+) = Box(
+    Modifier
+        .fillMaxSize()
+        .padding(top = LocalTopInset.current, bottom = LocalBottomInset.current)
+        .padding(24.dp),
+    Alignment.Center,
+) {
+    Text(text, color = color)
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun ErrorState(
+    message: String,
+    onRetry: (() -> Unit)?,
+    color: Color = Color.Unspecified,
+) = Box(
+    Modifier.fillMaxSize().padding(top = LocalTopInset.current, bottom = LocalBottomInset.current).padding(24.dp),
+    Alignment.Center,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(
+            Icons.Outlined.CloudOff,
+            contentDescription = null,
+            modifier = Modifier.size(40.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            message,
+            color = color,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
+        if (onRetry != null) {
+            FilledTonalButton(onClick = hapticClick(block = onRetry), shapes = ButtonDefaults.shapes()) {
+                Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Coba lagi")
+            }
+        }
+    }
+}
+
+@Composable
+fun OfflineBanner(modifier: Modifier = Modifier) {
+    val online by ConnectivityMonitor.online.collectAsStateWithLifecycle()
+    AnimatedVisibility(
+        visible = !online,
+        modifier = modifier,
+        enter = AppMotion.expandEnter(),
+        exit = AppMotion.expandExit(),
+    ) {
+        Surface(
+            color = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(
+                Modifier.statusBarsPadding().padding(horizontal = 16.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(Icons.Outlined.CloudOff, contentDescription = null, modifier = Modifier.size(16.dp))
+                Text("Lagi offline, nampilin data yang tersimpan", style = MaterialTheme.typography.labelMedium)
+            }
+        }
+    }
+}
+
+val LocalTopInset = compositionLocalOf { 0.dp }
+
+val LocalBottomInset = compositionLocalOf { 0.dp }
+
+val LocalMiniPlayerInset = compositionLocalOf { 0.dp }
+
+@Composable
+fun fabClearance(stacked: Dp = 0.dp): Dp = 56.dp + stacked + 16.dp + if (isLandscape()) 16.dp else 8.dp
+
+@Composable
+fun fabBottomInset(): Dp = (LocalBottomInset.current - 8.dp).coerceAtLeast(0.dp)
+
+@Composable
+fun BlurContentBox(
+    pad: PaddingValues,
+    backdrop: LayerBackdrop?,
+    modifier: Modifier = Modifier,
+    contentAlignment: Alignment = Alignment.TopStart,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    val miniInset = LocalMiniPlayerInset.current
+    Box(
+        modifier
+            .fillMaxSize()
+            .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier),
+        contentAlignment = contentAlignment,
+    ) {
+        CompositionLocalProvider(
+            LocalTopInset provides pad.calculateTopPadding(),
+            LocalBottomInset provides pad.calculateBottomPadding() + miniInset,
+        ) { content() }
+    }
+}
+
+@Composable
+fun contentTopPadding(): Dp {
+    val inset = LocalTopInset.current
+    return if (inset > 0.dp) inset + 16.dp else 8.dp
+}
+
+@Composable
+fun isLandscape(): Boolean = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE

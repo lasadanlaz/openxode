@@ -1,0 +1,88 @@
+package com.uwu.animex.data.user
+
+import android.content.Context
+import android.content.SharedPreferences
+import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
+import com.uwu.animex.core.security.SecureStore
+import com.uwu.animex.core.storage.PrefKeys
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+data class UserProfile(
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("username") val username: String? = null,
+    @SerializedName("email") val email: String? = null,
+    @SerializedName("image") val image: String? = null,
+    @SerializedName("key_client") val keyClient: String? = null,
+    @SerializedName("money") val money: Long? = null,
+    @SerializedName("coin") val coin: Long? = null,
+    @SerializedName("default_account") val isDefaultAccount: Boolean = false,
+) {
+    val isAuthenticated: Boolean
+        get() = !id.isNullOrBlank() && !keyClient.isNullOrBlank()
+}
+
+object UserSession {
+    private val gson = Gson()
+    private var prefs: SharedPreferences? = null
+
+    private val _user = MutableStateFlow<UserProfile?>(null)
+    val user: StateFlow<UserProfile?> = _user.asStateFlow()
+
+    private val _loggedIn = MutableStateFlow(false)
+    val loggedIn: StateFlow<Boolean> = _loggedIn.asStateFlow()
+
+    fun isLoggedIn(): Boolean = _loggedIn.value
+
+    fun userId(): String? = _user.value?.id?.takeIf { it.isNotBlank() }
+
+    fun keyClient(): String? = _user.value?.keyClient?.takeIf { it.isNotBlank() }
+
+    @Synchronized
+    fun init(context: Context) {
+        if (prefs != null) return
+        val p = context.applicationContext.getSharedPreferences(PrefKeys.UserSession.FILE, Context.MODE_PRIVATE)
+        prefs = p
+        val raw = p.getString(PrefKeys.UserSession.USER, null)
+        val saved =
+            runCatching {
+                gson.fromJson(SecureStore.decrypt(raw), UserProfile::class.java)
+            }.getOrNull()
+        if (saved != null && saved.isAuthenticated) {
+            _user.value = saved
+            _loggedIn.value = true
+            if (raw != null && !SecureStore.isEncrypted(raw)) {
+                SecureStore.encrypt(raw)?.let {
+                    p.edit().putString(PrefKeys.UserSession.USER, it).apply()
+                }
+            }
+        } else {
+            _user.value = null
+            _loggedIn.value = false
+        }
+    }
+
+    @Synchronized
+    fun save(profile: UserProfile) {
+        _user.value = profile
+        _loggedIn.value = profile.isAuthenticated
+        SecureStore.encrypt(gson.toJson(profile))?.let {
+            prefs?.edit()?.putString(PrefKeys.UserSession.USER, it)?.apply()
+        }
+    }
+
+    @Synchronized
+    fun update(block: (UserProfile) -> UserProfile) {
+        val cur = _user.value ?: return
+        save(block(cur))
+    }
+
+    @Synchronized
+    fun clear() {
+        _user.value = null
+        _loggedIn.value = false
+        prefs?.edit()?.remove(PrefKeys.UserSession.USER)?.apply()
+    }
+}

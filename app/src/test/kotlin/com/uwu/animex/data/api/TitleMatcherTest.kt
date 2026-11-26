@@ -1,0 +1,508 @@
+package com.uwu.animex.data.api
+
+import com.uwu.animex.data.model.Movie
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class TitleMatcherTest {
+    private data class Cand(
+        val id: String,
+        val titles: List<String>,
+        val type: String? = null,
+        val year: Int? = null,
+        val synonyms: List<String> = emptyList(),
+        val episodes: Int? = null,
+    )
+
+    private fun matchOf(
+        titles: List<String>,
+        candidates: List<Cand>,
+        wantedType: String? = null,
+        wantedYear: Int? = null,
+        wantedEpisodes: Int? = null,
+        queries: MutableList<String> = mutableListOf(),
+        fetch: (String) -> List<Cand> = { candidates },
+    ): TitleMatcher.Result<Cand> =
+        runBlocking {
+            TitleMatcher.match(
+                titles = titles,
+                fetch = { q ->
+                    queries += q
+                    fetch(q)
+                },
+                idOf = { it.id },
+                titlesOf = { it.titles },
+                synonymsOf = { it.synonyms },
+                typeOf = { it.type },
+                yearOf = { it.year },
+                episodesOf = { it.episodes },
+                wantedType = wantedType,
+                wantedYear = wantedYear,
+                wantedEpisodes = wantedEpisodes,
+            )
+        }
+
+    @Test
+    fun exactTitleMatches() {
+        val r = matchOf(listOf("Kimetsu no Yaiba"), listOf(Cand("1", listOf("Kimetsu no Yaiba"), "TV", 2019)))
+        assertEquals("1", r.best?.id)
+    }
+
+    @Test
+    fun exactTitleIgnoresCase() {
+        val r = matchOf(listOf("KIMETSU NO YAIBA"), listOf(Cand("1", listOf("Kimetsu no Yaiba"), "TV", 2019)))
+        assertEquals("1", r.best?.id)
+    }
+
+    @Test
+    fun dubTagIsRemovedFromOurTitle() {
+        val r = matchOf(listOf("Kimetsu no Yaiba (Dub)"), listOf(Cand("1", listOf("Kimetsu no Yaiba"), "TV")))
+        assertEquals("1", r.best?.id)
+    }
+
+    @Test
+    fun titleStartingWithSubIsNotTruncated() {
+        val r = matchOf(listOf("Subaru no Bouken"), listOf(Cand("1", listOf("Subaru no Bouken"), "TV")))
+        assertEquals("1", r.best?.id)
+    }
+
+    @Test
+    fun punctuationDifferenceStillResolves() {
+        val r =
+            matchOf(
+                listOf("Re:Zero kara Hajimeru Isekai Seikatsu"),
+                listOf(Cand("1", listOf("Re Zero kara Hajimeru Isekai Seikatsu"), "TV")),
+            )
+        assertEquals("1", r.best?.id)
+    }
+
+    @Test
+    fun firstStrictMatchWinsInProviderOrder() {
+        val r =
+            matchOf(
+                listOf("Black Clover"),
+                listOf(
+                    Cand("1", listOf("Black Clover"), "TV", 2017),
+                    Cand("2", listOf("Black Clover"), "TV", 2017),
+                ),
+            )
+        assertEquals("1", r.best?.id)
+    }
+
+    @Test
+    fun synonymAloneIsNotAStrictMatch() {
+        val viaSynonym = Cand("a", listOf("Hoshi no Name"), "TV", 2017, synonyms = listOf("Black Clover"))
+        val realTitle = Cand("b", listOf("Black Clover"), "TV", 2017)
+        val r = matchOf(listOf("Black Clover"), listOf(viaSynonym, realTitle))
+        assertEquals("b", r.best?.id)
+    }
+
+    @Test
+    fun synonymStillCountsForFuzzyMatching() {
+        val viaSynonym = Cand("a", listOf("Hoshi no Name"), "TV", 2017, synonyms = listOf("Black Clover"))
+        val r = matchOf(listOf("Black Clover"), listOf(viaSynonym))
+        assertEquals("a", r.best?.id)
+    }
+
+    @Test
+    fun ordinalSeasonPicksTheRightSeason() {
+        val s1 = Cand("1", listOf("Mushoku Tensei: Jobless Reincarnation"), "TV", 2021)
+        val s2 = Cand("2", listOf("Mushoku Tensei: Jobless Reincarnation Season 2"), "TV", 2021)
+        val r = matchOf(listOf("Mushoku Tensei: Jobless Reincarnation 2nd Season"), listOf(s1, s2))
+        assertEquals("2", r.best?.id)
+    }
+
+    @Test
+    fun arabicSeasonMatchesRomanNumeral() {
+        val s1 = Cand("1", listOf("Overlord"), "TV")
+        val s3 = Cand("3", listOf("Overlord III"), "TV")
+        val r = matchOf(listOf("Overlord Season 3"), listOf(s1, s3))
+        assertEquals("3", r.best?.id)
+    }
+
+    @Test
+    fun movieIsNotPickedForASeries() {
+        val movie = Cand("m", listOf("Fate/stay night"), "MOVIE", 2010)
+        val tv = Cand("t", listOf("Fate/stay night"), "TV", 2006)
+        val r = matchOf(listOf("Fate/stay night"), listOf(movie, tv), wantedType = "TV")
+        assertEquals("t", r.best?.id)
+    }
+
+    @Test
+    fun typeMismatchAloneIsOnlyAGuess() {
+        val movie = Cand("m", listOf("Fate/stay night"), "MOVIE", 2010)
+        val r = matchOf(listOf("Fate/stay night"), listOf(movie), wantedType = "TV")
+        assertNull(r.best)
+        assertEquals("m", r.guess?.id)
+    }
+
+    @Test
+    fun movieIsPickedWhenWeWantAMovie() {
+        val movie = Cand("m", listOf("Kimi no Na wa"), "MOVIE", 2016)
+        val tv = Cand("t", listOf("Kimi no Na wa"), "TV", 2016)
+        val r = matchOf(listOf("Kimi no Na wa"), listOf(tv, movie), wantedType = "Movie")
+        assertEquals("m", r.best?.id)
+    }
+
+    @Test
+    fun sameYearBeatsAnEarlierEntryWithADifferentYear() {
+        val old = Cand("1", listOf("Black Clover"), "TV", 2015)
+        val right = Cand("2", listOf("Black Clover"), "TV", 2017)
+        val r = matchOf(listOf("Black Clover"), listOf(old, right), wantedYear = 2017)
+        assertEquals("2", r.best?.id)
+    }
+
+    @Test
+    fun oneYearOffStillResolves() {
+        val r =
+            matchOf(listOf("Black Clover"), listOf(Cand("1", listOf("Black Clover"), "TV", 2016)), wantedYear = 2017)
+        assertEquals("1", r.best?.id)
+    }
+
+    @Test
+    fun farOffYearIsOnlyAGuess() {
+        val r =
+            matchOf(listOf("Black Clover"), listOf(Cand("1", listOf("Black Clover"), "TV", 2010)), wantedYear = 2017)
+        assertNull(r.best)
+        assertEquals("1", r.guess?.id)
+    }
+
+    @Test
+    fun unrelatedTitleGivesNothing() {
+        val r = matchOf(listOf("Naruto"), listOf(Cand("1", listOf("Bleach"), "TV")))
+        assertNull(r.best)
+        assertNull(r.guess)
+    }
+
+    @Test
+    fun nonLatinTitlesAreIgnoredWithoutSearching() {
+        val queries = mutableListOf<String>()
+        val r = matchOf(listOf("進撃の巨人"), listOf(Cand("1", listOf("x"))), queries = queries)
+        assertNull(r.best)
+        assertTrue(r.ranked.isEmpty())
+        assertTrue(queries.isEmpty())
+    }
+
+    @Test
+    fun latinTitleIsUsedWhenMixedWithNonLatin() {
+        val r =
+            matchOf(
+                listOf("進撃の巨人", "Shingeki no Kyojin"),
+                listOf(Cand("1", listOf("Shingeki no Kyojin"), "TV")),
+            )
+        assertEquals("1", r.best?.id)
+    }
+
+    @Test
+    fun firstTitleIsSearchedAsIs() {
+        val queries = mutableListOf<String>()
+        matchOf(
+            listOf("Kimetsu no Yaiba: Yuukaku-hen"),
+            listOf(Cand("1", listOf("Kimetsu no Yaiba: Yuukaku-hen"), "TV")),
+            queries = queries,
+        )
+        assertEquals(listOf("Kimetsu no Yaiba: Yuukaku-hen"), queries)
+    }
+
+    @Test
+    fun fallsBackToShorterQueryWhenTheFullTitleFindsNothing() {
+        val queries = mutableListOf<String>()
+        val hit = Cand("1", listOf("Kimetsu no Yaiba: Yuukaku-hen"), "TV")
+        val r =
+            matchOf(
+                listOf("Kimetsu no Yaiba: Yuukaku-hen"),
+                listOf(hit),
+                queries = queries,
+                fetch = { q -> if (q == "Kimetsu no Yaiba") listOf(hit) else emptyList() },
+            )
+        assertEquals("Kimetsu no Yaiba: Yuukaku-hen", queries.first())
+        assertTrue(queries.size > 1)
+        assertNotNull(r.best)
+    }
+
+    @Test
+    fun yearOfParsesMovieYear() {
+        assertEquals(2019, TitleMatcher.yearOf(Movie(aired_start = "2019-04-06")))
+        assertEquals(2019, TitleMatcher.yearOf(Movie(aired_start = "2019-04-06", aired_end = "2020-01-01")))
+        assertEquals(2020, TitleMatcher.yearOf(Movie(aired_start = "0000-00-00", aired_end = "2020-01-01")))
+        assertNull(TitleMatcher.yearOf(Movie(aired_start = "n/a")))
+        assertNull(TitleMatcher.yearOf(Movie(year = "2024-05-01")))
+        assertNull(TitleMatcher.yearOf(Movie()))
+    }
+
+    @Test
+    fun quotedTitleWithDifferentFirstWordSpellingStillResolves() {
+        val target =
+            Cand("1", listOf("Hime-sama \"Goumon\" no Jikan desu 2nd Season"), "TV", 2026)
+        val r =
+            matchOf(
+                listOf("Himesama \"Goumon\" no Jikan desu 2nd Season"),
+                listOf(target),
+                fetch = { q -> if (q.contains("Goumon no Jikan desu")) listOf(target) else emptyList() },
+            )
+        assertEquals("1", r.best?.id)
+    }
+
+    @Test
+    fun shortSeasonSuffixIsNotTakenAsSeasonOne() {
+        val s2 = Cand("2", listOf("Shingeki no Kyojin S2"), "TV", 2017)
+        val r = matchOf(listOf("Shingeki no Kyojin"), listOf(s2), wantedYear = 2013)
+        assertNull(r.best)
+    }
+
+    @Test
+    fun shortSeasonSuffixMatchesWantedSeason() {
+        val s1 = Cand("1", listOf("Shingeki no Kyojin"), "TV", 2013)
+        val s2 = Cand("2", listOf("Shingeki no Kyojin S2"), "TV", 2017)
+        val r = matchOf(listOf("Shingeki no Kyojin 2nd Season"), listOf(s1, s2))
+        assertEquals("2", r.best?.id)
+    }
+
+    @Test
+    fun accentsAreIgnored() {
+        val r = matchOf(listOf("Kyoukai no Kanata"), listOf(Cand("1", listOf("Ky\u014dkai no Kanata"), "TV")))
+        assertEquals("1", r.best?.id)
+    }
+
+    @Test
+    fun longVowelSpellingDoesNotMatter() {
+        val r = matchOf(listOf("Shokugeki no Souma"), listOf(Cand("1", listOf("Shokugeki no Soma"), "TV")))
+        assertEquals("1", r.best?.id)
+    }
+
+    @Test
+    fun particleSpellingDoesNotMatter() {
+        val r =
+            matchOf(
+                listOf("Kono Subarashii Sekai ni Shukufuku wo!"),
+                listOf(Cand("1", listOf("Kono Subarashii Sekai ni Shukufuku o!"), "TV")),
+            )
+        assertEquals("1", r.best?.id)
+    }
+
+    @Test
+    fun wordSeasonPicksTheRightSeason() {
+        val s1 = Cand("1", listOf("Haikyuu!!"), "TV", 2014)
+        val s2 = Cand("2", listOf("Haikyuu!! 2nd Season"), "TV", 2015)
+        val r = matchOf(listOf("Haikyuu!! Second Season"), listOf(s1, s2))
+        assertEquals("2", r.best?.id)
+    }
+
+    @Test
+    fun trailingNumberCountsAsSeason() {
+        val s1 = Cand("1", listOf("Overlord"), "TV")
+        val s3 = Cand("3", listOf("Overlord III"), "TV")
+        val r = matchOf(listOf("Overlord 3"), listOf(s1, s3))
+        assertEquals("3", r.best?.id)
+    }
+
+    @Test
+    fun romanNumeralInTheMiddleCountsAsSeason() {
+        val s1 = Cand("1", listOf("Mushoku Tensei: Isekai Ittara Honki Dasu"), "TV")
+        val s2 = Cand("2", listOf("Mushoku Tensei II: Isekai Ittara Honki Dasu"), "TV")
+        val r = matchOf(listOf("Mushoku Tensei: Isekai Ittara Honki Dasu 2nd Season"), listOf(s1, s2))
+        assertEquals("2", r.best?.id)
+    }
+
+    @Test
+    fun partNumberPicksTheRightPart() {
+        val p1 = Cand("1", listOf("Re:Zero kara Hajimeru Isekai Seikatsu Season 2 Part 1"), "TV")
+        val p2 = Cand("2", listOf("Re:Zero kara Hajimeru Isekai Seikatsu Season 2 Part 2"), "TV")
+        val r = matchOf(listOf("Re:Zero kara Hajimeru Isekai Seikatsu 2nd Season Part 2"), listOf(p1, p2))
+        assertEquals("2", r.best?.id)
+    }
+
+    @Test
+    fun longerSequelTitleIsNotConfidentForShortTitle() {
+        val r = matchOf(listOf("Naruto"), listOf(Cand("1", listOf("Naruto Shippuuden"), "TV")))
+        assertNull(r.best)
+    }
+
+    @Test
+    fun shorterTitleIsNotConfidentForLongSequelTitle() {
+        val r = matchOf(listOf("Naruto Shippuuden"), listOf(Cand("1", listOf("Naruto"), "TV")))
+        assertNull(r.best)
+    }
+
+    @Test
+    fun unrelatedResultsAreNotShortlisted() {
+        val mons = Cand("1", listOf("Monster Strike the Anime 2nd Season"), "TV")
+        val gran = Cand("2", listOf("Granblue Fantasy The Animation Season 2: Djeeta-hen"), "TV")
+        val r = matchOf(listOf("Himesama \"Goumon\" no Jikan desu 2nd Season"), listOf(mons, gran))
+        assertNull(r.best)
+        assertTrue(r.ranked.isEmpty())
+    }
+
+    @Test
+    fun subtitleIndonesiaNoiseIsIgnored() {
+        val r = matchOf(listOf("Kimetsu no Yaiba Sub Indo"), listOf(Cand("1", listOf("Kimetsu no Yaiba"), "TV")))
+        assertEquals("1", r.best?.id)
+    }
+
+    @Test
+    fun singleDigitInTitleIsNotTreatedAsSeason() {
+        val r = matchOf(listOf("Kaiju No. 8"), listOf(Cand("1", listOf("Kaiju No. 8"), "TV", 2024)))
+        assertEquals("1", r.best?.id)
+    }
+
+    @Test
+    fun keepsSearchingWhenFirstHitIsOnlyFuzzy() {
+        val exact = Cand("e", listOf("Boku no Hero Academia"), "TV", 2016)
+        val near = Cand("n", listOf("Boku no Hero Academia: Training of the Dead"), "OVA", 2016)
+        val queries = mutableListOf<String>()
+        val r =
+            matchOf(
+                listOf("Boku no Hero Academia"),
+                emptyList(),
+                queries = queries,
+                fetch = { if (queries.size == 1) listOf(near) else listOf(exact) },
+            )
+        assertEquals("e", r.best?.id)
+    }
+
+    @Test
+    fun yearInBracketsSeparatesRemakes() {
+        val old = Cand("1", listOf("Hunter x Hunter"), "TV", 1999)
+        val remake = Cand("2", listOf("Hunter x Hunter"), "TV", 2011)
+        val r = matchOf(listOf("Hunter x Hunter (2011)"), listOf(old, remake))
+        assertEquals("2", r.best?.id)
+    }
+
+    @Test
+    fun yearInCandidateTitleIsUsedWhenYearFieldIsMissing() {
+        val old = Cand("1", listOf("Hunter x Hunter (1999)"), "TV")
+        val remake = Cand("2", listOf("Hunter x Hunter (2011)"), "TV")
+        val r = matchOf(listOf("Hunter x Hunter"), listOf(old, remake), wantedYear = 2011)
+        assertEquals("2", r.best?.id)
+    }
+
+    @Test
+    fun underscoredTypeIsRecognized() {
+        val special = Cand("1", listOf("Fate/Zero Special"), "SPECIAL")
+        val r = matchOf(listOf("Fate/Zero Special"), listOf(special), wantedType = "tv_special")
+        assertEquals("1", r.best?.id)
+    }
+
+    @Test
+    fun lowercaseSyncTypeStillSeparatesMovieFromSeries() {
+        val movie = Cand("m", listOf("Kimi no Na wa"), "movie", 2016)
+        val tv = Cand("t", listOf("Kimi no Na wa"), "tv", 2016)
+        val r = matchOf(listOf("Kimi no Na wa"), listOf(movie, tv), wantedType = "TV")
+        assertEquals("t", r.best?.id)
+    }
+
+    @Test
+    fun theatricalTitleLooksForMovies() {
+        val movie = Cand("m", listOf("Gekijouban Kimi no Na wa"), "MOVIE", 2016)
+        val r = matchOf(listOf("Gekijouban Kimi no Na wa"), listOf(movie))
+        assertEquals("m", r.best?.id)
+    }
+
+    @Test
+    fun timesSignMatchesLetterX() {
+        val s1 = Cand("1", listOf("Spy x Family"), "TV", 2022)
+        val s3 = Cand("3", listOf("Spy x Family Season 3"), "TV", 2025)
+        val queries = mutableListOf<String>()
+        val r = matchOf(listOf("SPY\u00D7FAMILY Season 3"), listOf(s1, s3), queries = queries)
+        assertEquals("3", r.best?.id)
+        assertEquals("SPY x FAMILY Season 3", queries.first())
+    }
+
+    @Test
+    fun honorificHyphenIsSearchedWithoutHyphen() {
+        val hit = Cand("1", listOf("Oniichan wa Oshimai!"), "TV", 2023)
+        val queries = mutableListOf<String>()
+        val r =
+            matchOf(
+                listOf("Onii-chan wa Oshimai!"),
+                listOf(hit),
+                queries = queries,
+                fetch = { q -> if (q.contains("Oniichan")) listOf(hit) else emptyList() },
+            )
+        assertEquals("1", r.best?.id)
+    }
+
+    @Test
+    fun titleFullyInBracketsStillResolvesItsSeasons() {
+        val s1 = Cand("1", listOf("[Oshi no Ko]"), "TV", 2023)
+        val s2 = Cand("2", listOf("[Oshi no Ko] 2nd Season"), "TV", 2024)
+        val s3 = Cand("3", listOf("[Oshi no Ko] 3rd Season"), "TV", 2026)
+        val queries = mutableListOf<String>()
+        val r =
+            matchOf(
+                listOf("[Oshi no Ko]"),
+                emptyList(),
+                queries = queries,
+                fetch = { q -> if (q.startsWith("[")) listOf(s3) else listOf(s1, s2, s3) },
+            )
+        assertEquals("1", r.best?.id)
+        assertEquals("Oshi no Ko", queries.first())
+    }
+
+    @Test
+    fun trailingApostropheIsSearchedWithoutIt() {
+        val hit = Cand("1", listOf("Jashin-chan Dropkick'"), "TV", 2020)
+        val queries = mutableListOf<String>()
+        val r =
+            matchOf(
+                listOf("Jashin-chan Dropkick\u2019"),
+                listOf(hit),
+                queries = queries,
+                fetch = { q -> if (q.none { it == '\u2019' || it == '\'' }) listOf(hit) else emptyList() },
+            )
+        assertEquals("1", r.best?.id)
+        assertEquals("Jashin-chan Dropkick", queries[1])
+    }
+
+    @Test
+    fun shortEntryWithSameTitleLosesToTheFullSeries() {
+        val special = Cand("s", listOf("Kobayashi-san Chi no Maid Dragon S"), "OVA", 2021, episodes = 1)
+        val series = Cand("t", listOf("Kobayashi-san Chi no Maid Dragon S"), "TV", 2021, episodes = 12)
+        val r =
+            matchOf(
+                listOf("Kobayashi-san Chi no Maid Dragon S"),
+                listOf(special, series),
+                wantedYear = 2021,
+                wantedEpisodes = 12,
+            )
+        assertEquals("t", r.best?.id)
+    }
+
+    @Test
+    fun onlyAOneEpisodeEntryIsNotGuessedForALongSeries() {
+        val special = Cand("s", listOf("Kobayashi-san Chi no Maid Dragon S"), "OVA", 2021, episodes = 1)
+        val r =
+            matchOf(
+                listOf("Kobayashi-san Chi no Maid Dragon S"),
+                listOf(special),
+                wantedYear = 2021,
+                wantedEpisodes = 12,
+            )
+        assertNull(r.best)
+        assertNull(r.guess)
+    }
+
+    @Test
+    fun unknownEpisodeCountsDoNotChangeTheResult() {
+        val special = Cand("s", listOf("Kobayashi-san Chi no Maid Dragon S"), "OVA", 2021)
+        val r =
+            matchOf(
+                listOf("Kobayashi-san Chi no Maid Dragon S"),
+                listOf(special),
+                wantedYear = 2021,
+                wantedEpisodes = 12,
+            )
+        assertEquals("s", r.best?.id)
+    }
+
+    @Test
+    fun ongoingSeriesWithFewerEpisodesAiredStillMatches() {
+        val series = Cand("t", listOf("Spy x Family"), "TV", 2022, episodes = 12)
+        val r = matchOf(listOf("Spy x Family"), listOf(series), wantedYear = 2022, wantedEpisodes = 5)
+        assertEquals("t", r.best?.id)
+    }
+}

@@ -1,0 +1,564 @@
+package com.uwu.animex.data.api
+
+import com.uwu.animex.core.network.runSuspendCatching
+import com.uwu.animex.data.model.Movie
+import java.text.Normalizer
+import kotlin.math.abs
+import kotlin.math.max
+
+object TitleMatcher {
+    class Result<T>(
+        val best: T?,
+        val ranked: List<T>,
+        val guess: T? = best,
+    )
+
+    private const val MIN_TITLE_LENGTH = 3
+    private const val MAX_QUERY_LENGTH = 64
+    private const val MAX_QUERIES = 9
+    private const val MAX_SOURCES = 5
+    private const val CONFIDENT_SCORE = 0.9
+    private const val CONFIDENT_SIMILARITY = 0.8
+    private const val CONFIDENT_MARGIN = 0.08
+    private const val EARLY_SIMILARITY = 0.97
+    private const val EARLY_QUERY_COUNT = 3
+    private const val MIN_CANDIDATE_SCORE = 0.45
+    private const val MIN_CANDIDATE_SIMILARITY = 0.55
+    private const val MAX_CANDIDATES = 8
+    private const val GUESS_SCORE = 0.6
+    private const val PARTIAL_MIN_LENGTH = 6
+    private const val PARTIAL_BASE = 0.7
+    private const val PARTIAL_WEIGHT = 0.2
+    private const val SYNONYM_DISCOUNT = 0.03
+    private const val EPISODE_MISMATCH_PENALTY = -0.4
+    private const val EPISODE_MATCH_BONUS = 0.03
+
+    private val NOISE =
+        Regex(
+            "(?i)sub(?:title)?\\s+indo(?:nesia)?|\\b(?:batch|bluray|bd|uncensored|lengkap|tamat|ongoing|1080p|720p|480p|360p|4k|x264|x265|hevc|mp4|mkv|dual\\s+audio|multi\\s+sub)\\b",
+        )
+    private val DUB_SUB = Regex("(?i)\\(?\\b[ds]ub(?:bed)?\\b\\)?")
+    private val BRACKETS = Regex("\\(.*?\\)|\\[.*?]")
+    private val BRACKET_WRAP = Regex("[(\\[](.*?)[)\\]]")
+    private val EPISODE = Regex("(?i)\\b(?:episode|eps?)\\s*\\d+(?:\\s*-\\s*\\d+)?\\b")
+    private val ORDINAL_SEASON = Regex("(?i)\\b(\\d+)(?:st|nd|rd|th)\\s+season\\b")
+    private val WORD_SEASON =
+        Regex("(?i)\\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\\s+season\\b")
+    private val SEASON = Regex("(?i)\\b(?:season|musim)\\s*(\\d+|II|III|IV|V|VI|VII|VIII|IX|X)\\b")
+    private val SHORT_SEASON = Regex("(?i)\\bS(\\d{1,2})\\b")
+    private val ORDINAL_PART = Regex("(?i)\\b(\\d+)(?:st|nd|rd|th)\\s+(?:part|cour)\\b")
+    private val PART = Regex("(?i)\\b(?:part|cour)\\s*(\\d+|II|III|IV|V|VI)\\b")
+    private val ROMAN_SEASON = Regex("\\s(II|III|IV|V|VI|VII|VIII|IX|X)(?=\\s*[:~\\-]|\\s*$)")
+    private val TRAILING_NUMBER = Regex("\\s+([2-6])$")
+    private val ROMANS =
+        mapOf(
+            "II" to 2, "III" to 3, "IV" to 4, "V" to 5, "VI" to 6,
+            "VII" to 7, "VIII" to 8, "IX" to 9, "X" to 10,
+        )
+    private val WORD_NUMBERS =
+        listOf("first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth")
+    private val SPECIAL_HINT = Regex("(?i)\\b(?:movie|film|ova|oad|special|gekijou?ban)\\b")
+    private val TITLE_YEAR = Regex("[(\\[]\\s*((?:19|20)\\d{2})\\s*[)\\]]")
+    private val EDGE_QUOTES =
+        Regex(
+            "(?<![\\p{L}\\p{N}])['\u2019\u2018`\u00B4\"\u201C\u201D]|['\u2019\u2018`\u00B4\"\u201C\u201D](?![\\p{L}\\p{N}])",
+        )
+    private val TIMES_SIGN = Regex("[\u00D7\u2715\u2716]")
+    private val HONORIFIC_HYPHEN = Regex("(?i)(?<=\\p{L})-(?=(?:chan|kun|san|sama|sensei|senpai|tan|dono)\\b)")
+    private val SPACES = Regex("\\s+")
+    private val PUNCT = Regex("[^\\p{L}\\p{N}\\s]")
+    private val MARKS = Regex("\\p{M}+")
+    private val NON_ALNUM = Regex("[^\\p{L}\\p{N}]+")
+    private val PARTICLES = mapOf("wo" to "o", "ha" to "wa")
+    private val STOP_TOKENS = setOf("the", "a", "an", "of", "in", "and", "no", "wa", "ga", "wo", "o", "ni", "de", "to")
+
+    private enum class Kind { MOVIE, TV, TV_SHORT, ONA, OVA, SPECIAL, MUSIC }
+
+    private val SERIES_KINDS = setOf(Kind.TV, Kind.TV_SHORT, Kind.ONA, Kind.OVA)
+    private val MOVIE_KINDS = setOf(Kind.MOVIE)
+    private val EXTRA_KINDS = setOf(Kind.OVA, Kind.SPECIAL, Kind.ONA)
+    private val MUSIC_KINDS = setOf(Kind.MUSIC)
+
+    private val MOVIE_WORD = Regex("(?i)\\b(?:movie|film)\\b")
+    private val EXTRA_WORD = Regex("(?i)\\b(?:ova|oad|special)\\b")
+    private val MUSIC_WORD = Regex("(?i)\\bmusic\\b")
+
+    private fun unaccent(s: String): String = Normalizer.normalize(s, Normalizer.Form.NFKD).replace(MARKS, "")
+
+    private fun collapseVowels(s: String): String =
+        s
+            .replace("ou", "o")
+            .replace("oo", "o")
+            .replace("uu", "u")
+            .replace("nb", "mb")
+            .replace("np", "mp")
+            .replace("nm", "mm")
+
+    private fun normalizeTokens(s: String?): List<String> =
+        unaccent(s.orEmpty())
+            .replace("&", " and ")
+            .lowercase()
+            .split(NON_ALNUM)
+            .filter { it.isNotEmpty() }
+            .map { collapseVowels(PARTICLES[it] ?: it) }
+
+    private fun normalize(s: String?): String = normalizeTokens(s).joinToString("")
+
+    private fun plain(s: String): String = s.replace(PUNCT, " ").replace(SPACES, " ").trim()
+
+    private fun exactKey(title: String): String = normalize(prepare(title))
+
+    private fun yearIn(title: String): Int? =
+        TITLE_YEAR
+            .find(title)
+            ?.groupValues
+            ?.get(1)
+            ?.toIntOrNull()
+
+    private fun prepare(title: String): String =
+        title
+            .replace(TIMES_SIGN, " x ")
+            .replace("&", " and ")
+            .replace(NOISE, " ")
+            .replace(DUB_SUB, " ")
+            .replace(SPACES, " ")
+            .trim()
+
+    private fun strip(title: String): String =
+        stripWith(title, BRACKETS, " ").ifEmpty { stripWith(title, BRACKET_WRAP, "$1") }
+
+    private fun stripWith(
+        title: String,
+        brackets: Regex,
+        replacement: String,
+    ): String =
+        prepare(title)
+            .replace(brackets, replacement)
+            .replace(EPISODE, " ")
+            .replace(ORDINAL_SEASON, " ")
+            .replace(WORD_SEASON, " ")
+            .replace(SEASON, " ")
+            .replace(SHORT_SEASON, " ")
+            .replace(ORDINAL_PART, " ")
+            .replace(PART, " ")
+            .replace(ROMAN_SEASON, " ")
+            .replace(SPACES, " ")
+            .trim(' ', ':', '-', '~')
+            .replace(TRAILING_NUMBER, "")
+            .trim(' ', ':', '-', '~')
+
+    private fun searchable(title: String): String =
+        if (stripWith(title, BRACKETS, " ").isEmpty()) title.replace(BRACKET_WRAP, "$1") else title
+
+    private fun coreOf(title: String): String =
+        title
+            .replace(BRACKETS, " ")
+            .replace(EPISODE, " ")
+            .replace(ORDINAL_PART, " ")
+            .replace(PART, " ")
+            .replace(SPACES, " ")
+            .trim()
+
+    private fun seasonOf(title: String): Int? {
+        val clean = coreOf(title)
+        ORDINAL_SEASON
+            .find(clean)
+            ?.groupValues
+            ?.get(1)
+            ?.toIntOrNull()
+            ?.let { return it }
+        WORD_SEASON
+            .find(clean)
+            ?.groupValues
+            ?.get(1)
+            ?.let { WORD_NUMBERS.indexOf(it.lowercase()) + 1 }
+            ?.takeIf { it > 0 }
+            ?.let { return it }
+        SEASON
+            .find(clean)
+            ?.groupValues
+            ?.get(1)
+            ?.let { raw -> raw.toIntOrNull() ?: ROMANS[raw.uppercase()] }
+            ?.let { return it }
+        SHORT_SEASON
+            .find(clean)
+            ?.groupValues
+            ?.get(1)
+            ?.toIntOrNull()
+            ?.let { return it }
+        ROMAN_SEASON
+            .find(clean)
+            ?.groupValues
+            ?.get(1)
+            ?.let { ROMANS[it] }
+            ?.let { return it }
+        return TRAILING_NUMBER
+            .find(clean)
+            ?.groupValues
+            ?.get(1)
+            ?.toIntOrNull()
+    }
+
+    private fun partOf(title: String): Int? {
+        val clean = title.replace(BRACKETS, " ")
+        ORDINAL_PART
+            .find(clean)
+            ?.groupValues
+            ?.get(1)
+            ?.toIntOrNull()
+            ?.let { return it }
+        return PART
+            .find(clean)
+            ?.groupValues
+            ?.get(1)
+            ?.let { raw -> raw.toIntOrNull() ?: ROMANS[raw.uppercase()] }
+    }
+
+    private fun isLatin(s: String): Boolean {
+        val letters = s.filter { it.isLetter() }
+        return letters.isNotEmpty() && letters.count { it.code < 0x250 } * 10 >= letters.length * 8
+    }
+
+    private fun kindsOfWanted(
+        type: String?,
+        wantsSpecial: Boolean,
+    ): Set<Kind>? {
+        val t = type.orEmpty().replace('_', ' ')
+        return when {
+            t.isBlank() -> if (wantsSpecial) null else SERIES_KINDS
+            MUSIC_WORD.containsMatchIn(t) -> MUSIC_KINDS
+            MOVIE_WORD.containsMatchIn(t) -> MOVIE_KINDS
+            EXTRA_WORD.containsMatchIn(t) -> EXTRA_KINDS
+            else -> SERIES_KINDS
+        }
+    }
+
+    private fun kindOf(type: String?): Kind? {
+        val key = type?.trim()?.uppercase()?.replace(' ', '_') ?: return null
+        if (key == "TV_SPECIAL") return Kind.SPECIAL
+        return Kind.entries.firstOrNull { it.name == key }
+    }
+
+    private fun tokenSimilarity(
+        tokensA: List<String>,
+        tokensB: List<String>,
+    ): Double {
+        val setA = tokensA.filterNot { it in STOP_TOKENS }.toSet().ifEmpty { tokensA.toSet() }
+        val setB = tokensB.filterNot { it in STOP_TOKENS }.toSet().ifEmpty { tokensB.toSet() }
+        if (setA.size < 2 || setB.size < 2) return 0.0
+        val overlap = setA.count { it in setB }
+        if (overlap == 0) return 0.0
+        val dice = (2.0 * overlap) / (setA.size + setB.size)
+        return dice * 0.95
+    }
+
+    private fun similarity(
+        a: String,
+        b: String,
+        tokensA: List<String> = emptyList(),
+        tokensB: List<String> = emptyList(),
+    ): Double {
+        if (a.isEmpty() || b.isEmpty()) return 0.0
+        if (a == b) return 1.0
+        var s = Levenshtein.ratio(a, b) / 100.0
+        val short = if (a.length <= b.length) a else b
+        val long = if (a.length <= b.length) b else a
+        if (short.length >= PARTIAL_MIN_LENGTH && Levenshtein.partialRatio(a, b) >= 100) {
+            s = max(s, PARTIAL_BASE + PARTIAL_WEIGHT * short.length / long.length)
+        }
+        if (tokensA.isNotEmpty() && tokensB.isNotEmpty()) {
+            s = max(s, tokenSimilarity(tokensA, tokensB))
+        }
+        return s
+    }
+
+    private fun cut(
+        s: String,
+        maxLen: Int,
+    ): String {
+        if (s.length <= maxLen) return s
+        val words = s.split(' ')
+        val sb = StringBuilder()
+        for (w in words) {
+            if (sb.length + w.length + (if (sb.isEmpty()) 0 else 1) > maxLen) break
+            if (sb.isNotEmpty()) sb.append(' ')
+            sb.append(w)
+        }
+        return sb.toString().ifEmpty { s.take(maxLen) }
+    }
+
+    private fun queriesFor(sources: List<String>): List<String> {
+        val out = LinkedHashSet<String>()
+
+        fun add(q: String) {
+            if (q.length >= MIN_TITLE_LENGTH) out.add(cut(q, MAX_QUERY_LENGTH))
+        }
+
+        fun variants(s: String) {
+            val stripped = strip(s)
+            add(stripped.substringBefore(':').trim())
+
+            val clean = plain(unaccent(stripped))
+            add(clean)
+            val words = clean.split(' ').filter { it.isNotBlank() }
+
+            if (words.size > 2) add(words.drop(1).joinToString(" "))
+            if (words.size > 4) add(words.take(4).joinToString(" "))
+            if (words.size > 2) add(words.take(2).joinToString(" "))
+
+            val lower = clean.lowercase()
+            val collapsed = collapseVowels(lower)
+            if (collapsed != lower) add(collapsed)
+        }
+
+        val first = sources.firstOrNull() ?: return emptyList()
+        val firstQuery = searchable(first)
+        add(firstQuery)
+        add(firstQuery.replace(EDGE_QUOTES, " ").replace(SPACES, " ").trim())
+        val joined = strip(first).replace(HONORIFIC_HYPHEN, "")
+        if (joined != strip(first)) add(joined)
+        add(strip(first))
+        variants(first)
+        for (s in sources.drop(1)) add(strip(s))
+        for (s in sources.drop(1)) variants(s)
+        return out.take(MAX_QUERIES)
+    }
+
+    private class Wanted(
+        val exactKeys: Set<String>,
+        val bases: List<Pair<String, List<String>>>,
+        val season: Int,
+        val part: Int?,
+        val kinds: Set<Kind>?,
+        val year: Int?,
+        val episodes: Int?,
+    )
+
+    private class Scored<T>(
+        val item: T,
+        val exact: Boolean,
+        val strict: Boolean,
+        val similarity: Double,
+        val score: Double,
+        val episodeMismatch: Boolean = false,
+    )
+
+    private fun bestSimilarity(
+        title: String,
+        wanted: Wanted,
+    ): Double {
+        val tokens = normalizeTokens(strip(title))
+        val key = tokens.joinToString("")
+        if (key.isEmpty()) return 0.0
+        var sim = 0.0
+        for ((wKey, wTokens) in wanted.bases) sim = max(sim, similarity(wKey, key, wTokens, tokens))
+        return sim
+    }
+
+    private fun <T> scoreItem(
+        item: T,
+        titles: List<String>,
+        synonyms: List<String>,
+        type: String?,
+        year: Int?,
+        episodes: Int?,
+        wanted: Wanted,
+    ): Scored<T> {
+        val own = titles.map { it.trim() }.filter { it.isNotEmpty() }
+        val syn = synonyms.map { it.trim() }.filter { it.isNotEmpty() }
+
+        val exact = own.any { exactKey(it) in wanted.exactKeys }
+
+        var sim = if (exact) 1.0 else 0.0
+        if (!exact) {
+            for (t in own) sim = max(sim, bestSimilarity(t, wanted))
+            for (t in syn) sim = max(sim, bestSimilarity(t, wanted) - SYNONYM_DISCOUNT)
+        }
+
+        val candSeason = own.firstNotNullOfOrNull { seasonOf(it) } ?: syn.firstNotNullOfOrNull { seasonOf(it) }
+        val seasonAdj =
+            when {
+                candSeason == null && wanted.season == 1 -> 0.05
+                candSeason == null -> -0.25
+                candSeason == wanted.season -> 0.1
+                else -> -0.5
+            }
+
+        val candPart = own.firstNotNullOfOrNull { partOf(it) } ?: syn.firstNotNullOfOrNull { partOf(it) }
+        val wantedPart = wanted.part
+        val partAdj =
+            when {
+                wantedPart != null && candPart != null -> if (candPart == wantedPart) 0.05 else -0.4
+                wantedPart == null && candPart != null && candPart > 1 -> -0.2
+                wantedPart != null && wantedPart > 1 && candPart == null -> -0.15
+                else -> 0.0
+            }
+
+        val candKind = kindOf(type)
+        val typeOk = wanted.kinds == null || candKind == null || candKind in wanted.kinds
+        val typeAdj = if (typeOk) 0.0 else -0.25
+
+        val candYear = year ?: own.firstNotNullOfOrNull { yearIn(it) }
+        val diff = if (wanted.year != null && candYear != null) abs(wanted.year - candYear) else null
+        val yearOk = diff == null || diff == 0
+        val yearAdj =
+            when {
+                diff == null -> 0.0
+                diff == 0 -> 0.05
+                diff == 1 -> 0.0
+                else -> -0.3
+            }
+
+        val episodeAdj = episodeAdjustment(wanted.episodes, episodes)
+
+        val episodeMismatch = episodeAdj <= EPISODE_MISMATCH_PENALTY
+        val strict = exact && typeOk && yearOk && seasonAdj > -0.5 && partAdj > -0.4 && !episodeMismatch
+        val score = sim + seasonAdj + partAdj + typeAdj + yearAdj + episodeAdj
+        return Scored(item, exact, strict, sim, score, episodeMismatch)
+    }
+
+    private fun episodeAdjustment(
+        wanted: Int?,
+        candidate: Int?,
+    ): Double =
+        when {
+            wanted == null || wanted <= 1 || candidate == null || candidate <= 0 -> 0.0
+            candidate == wanted -> EPISODE_MATCH_BONUS
+            candidate * 2 < wanted || (candidate == 1 && wanted >= 3) -> EPISODE_MISMATCH_PENALTY
+            else -> 0.0
+        }
+
+    suspend fun knownEpisodes(movieId: String?): Int? {
+        movieId ?: return null
+        val list = runSuspendCatching { Api.episodes(movieId) }.getOrNull().orEmpty()
+        return (list.mapNotNull { it.index?.toIntOrNull() }.maxOrNull() ?: list.size).takeIf { it > 0 }
+    }
+
+    private fun <T> decide(scored: Collection<Scored<T>>): Result<T> {
+        val ranked = scored.sortedByDescending { it.score }
+        val top = ranked.firstOrNull()
+        val second = ranked.getOrNull(1)
+
+        val strict = ranked.firstOrNull { it.strict }
+        val fuzzyConfident =
+            top != null &&
+                top.score >= CONFIDENT_SCORE &&
+                top.similarity >= CONFIDENT_SIMILARITY &&
+                (second == null || top.score - second.score >= CONFIDENT_MARGIN)
+
+        val best = strict?.item ?: top?.takeIf { fuzzyConfident }?.item
+        val guess =
+            best
+                ?: ranked
+                    .firstOrNull { !it.episodeMismatch }
+                    ?.takeIf { it.exact || it.score >= GUESS_SCORE }
+                    ?.item
+        val shortlist =
+            ranked
+                .filter { it.exact || (it.similarity >= MIN_CANDIDATE_SIMILARITY && it.score >= MIN_CANDIDATE_SCORE) }
+                .take(MAX_CANDIDATES)
+                .map { it.item }
+        return Result(best, shortlist, guess)
+    }
+
+    suspend fun <T> match(
+        titles: List<String>,
+        fetch: suspend (String) -> List<T>,
+        idOf: (T) -> String?,
+        titlesOf: (T) -> List<String>,
+        synonymsOf: (T) -> List<String> = { emptyList() },
+        typeOf: (T) -> String? = { null },
+        yearOf: (T) -> Int? = { null },
+        episodesOf: (T) -> Int? = { null },
+        wantedType: String? = null,
+        wantedYear: Int? = null,
+        wantedEpisodes: Int? = null,
+    ): Result<T> {
+        val sources =
+            titles
+                .map { prepare(it) }
+                .filter { it.length >= MIN_TITLE_LENGTH && isLatin(it) }
+                .distinctBy { it.lowercase() }
+                .take(MAX_SOURCES)
+        if (sources.isEmpty()) return Result(null, emptyList())
+
+        val wantsSpecial =
+            sources.any { SPECIAL_HINT.containsMatchIn(it) } ||
+                wantedType?.let { EXTRA_WORD.containsMatchIn(it) || MOVIE_WORD.containsMatchIn(it) } == true
+        val wanted =
+            Wanted(
+                exactKeys = sources.map { exactKey(it) }.toSet(),
+                bases =
+                    sources
+                        .map { s ->
+                            val tokens = normalizeTokens(strip(s))
+                            tokens.joinToString("") to tokens
+                        }.filter { it.first.length >= 2 }
+                        .distinctBy { it.first },
+                season = sources.firstNotNullOfOrNull { seasonOf(it) } ?: 1,
+                part = sources.firstNotNullOfOrNull { partOf(it) },
+                kinds = kindsOfWanted(wantedType, wantsSpecial),
+                year = wantedYear ?: sources.firstNotNullOfOrNull { yearIn(it) },
+                episodes = wantedEpisodes,
+            )
+
+        val scored = LinkedHashMap<String, Scored<T>>()
+        for ((index, q) in queriesFor(sources).withIndex()) {
+            for (item in fetch(q)) {
+                val id = idOf(item) ?: continue
+                if (id !in scored) {
+                    scored[id] =
+                        scoreItem(
+                            item,
+                            titlesOf(item),
+                            synonymsOf(item),
+                            typeOf(item),
+                            yearOf(item),
+                            episodesOf(item),
+                            wanted,
+                        )
+                }
+            }
+            val best = decide(scored.values).best ?: continue
+            val s = scored.values.firstOrNull { it.item === best } ?: continue
+
+            if (s.strict || s.similarity >= EARLY_SIMILARITY || index + 1 >= EARLY_QUERY_COUNT) {
+                return decide(scored.values)
+            }
+        }
+        return decide(scored.values)
+    }
+
+    suspend fun find(
+        titles: List<String>,
+        wantedType: String? = null,
+        wantedYear: Int? = null,
+    ): Result<Movie> =
+        match(
+            titles = titles,
+            fetch = { q -> runSuspendCatching { Api.search(q) }.getOrNull().orEmpty() },
+            idOf = { it.id },
+            titlesOf = { listOf(it.title.orEmpty()) + it.synonyms.orEmpty().split(',') },
+            typeOf = { it.type },
+            yearOf = { yearOf(it) },
+            wantedType = wantedType,
+            wantedYear = wantedYear,
+        )
+
+    fun yearOf(movie: Movie): Int? = airedYear(movie.aired_start) ?: airedYear(movie.aired_end)
+
+    private fun airedYear(date: String?): Int? =
+        date
+            ?.trim()
+            ?.take(4)
+            ?.toIntOrNull()
+            ?.takeIf { it in 1900..2100 }
+
+    fun titlesOf(movie: Movie): List<String> =
+        listOf(movie.title.orEmpty()) + movie.synonyms
+            .orEmpty()
+            .split(',')
+            .map { it.trim() }
+            .filter { it.length >= 3 }
+            .take(5)
+}

@@ -1,0 +1,382 @@
+package com.uwu.animex.ui.viewmodel
+
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.uwu.animex.core.network.toUserMessage
+import com.uwu.animex.data.user.UserApi
+import com.uwu.animex.data.user.UserSession
+import com.uwu.animex.notifications.discussion.DiscussionNotificationService
+import com.uwu.animex.ui.common.UiState
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+private const val DISCUSSION_PAGE_SIZE = 30
+
+enum class DiscussionScope {
+    Movie,
+    Episode,
+    Cuplix,
+}
+
+private class DiscussionPager(
+    private val targetId: String,
+    private val scope: DiscussionScope,
+) {
+    val initialPage: Int = if (scope == DiscussionScope.Movie) 1 else 0
+    var nextPage: Int = initialPage + 1
+    var onReset: (() -> Unit)? = null
+    var onFirstPage: ((Int) -> Unit)? = null
+
+    suspend fun loadPage(page: Int): List<UserApi.Discussion> =
+        when (scope) {
+            DiscussionScope.Movie -> UserApi.discussionList(targetId, page)
+            DiscussionScope.Episode -> UserApi.episodeCommentList(targetId, page)
+            DiscussionScope.Cuplix ->
+                if (page == initialPage) UserApi.cuplixCommentList(targetId) else emptyList()
+        }
+
+    suspend fun loadFirst(force: Boolean): List<UserApi.Discussion> {
+        if (force) reset()
+        return loadPage(initialPage).also { onFirstPage?.invoke(it.size) }
+    }
+
+    suspend fun reloadLoadedPages(): List<UserApi.Discussion> {
+        val pageCount = (nextPage - initialPage).coerceAtLeast(1)
+        val seen = HashSet<String>()
+        val merged = ArrayList<UserApi.Discussion>()
+        for (i in 0 until pageCount) {
+            for (item in loadPage(initialPage + i)) {
+                if (item.id == null || seen.add(item.id)) merged += item
+            }
+        }
+        return merged
+    }
+
+    fun reset() {
+        nextPage = initialPage + 1
+        onReset?.invoke()
+    }
+}
+
+class DiscussionViewModel private constructor(
+    private val targetId: String,
+    private val scope: DiscussionScope,
+    private val title: String?,
+    private val pager: DiscussionPager,
+) : LoadViewModel<List<UserApi.Discussion>>(
+        loader = { force -> pager.loadFirst(force) },
+    ) {
+    constructor(
+        targetId: String,
+        scope: DiscussionScope = DiscussionScope.Movie,
+        title: String? = null,
+    ) : this(targetId, scope, title, DiscussionPager(targetId, scope))
+
+    init {
+        pager.onReset = {
+            _hasMore.value = true
+            _loadMoreError.value = false
+        }
+        pager.onFirstPage = { size ->
+            _hasMore.value = scope != DiscussionScope.Cuplix && size >= DISCUSSION_PAGE_SIZE
+        }
+    }
+
+    private val _loadingMore = MutableStateFlow(false)
+    val loadingMore: StateFlow<Boolean> = _loadingMore.asStateFlow()
+
+    private val _hasMore = MutableStateFlow(true)
+    val hasMore: StateFlow<Boolean> = _hasMore.asStateFlow()
+
+    private val _loadMoreError = MutableStateFlow(false)
+    val loadMoreError: StateFlow<Boolean> = _loadMoreError.asStateFlow()
+
+    private val _sending = MutableStateFlow(false)
+    val sending: StateFlow<Boolean> = _sending.asStateFlow()
+
+    private val _sendError = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val sendError: SharedFlow<String> = _sendError.asSharedFlow()
+
+    private val _actionBusy = MutableStateFlow(false)
+    val actionBusy: StateFlow<Boolean> = _actionBusy.asStateFlow()
+
+    fun loadMore() {
+        if (_loadingMore.value || !_hasMore.value) return
+        val existingItems = (state.value as? UiState.Ready)?.value.orEmpty()
+        if (existingItems.isEmpty()) {
+            _hasMore.value = false
+            return
+        }
+        val page = pager.nextPage
+        _loadingMore.value = true
+        _loadMoreError.value = false
+        viewModelScope.launch {
+            try {
+                val result = pager.loadPage(page)
+                val current = (state.value as? UiState.Ready)?.value.orEmpty()
+                val knownIds = current.mapNotNull { it.id }.toHashSet()
+                val newItems = result.filter { it.id == null || knownIds.add(it.id) }
+                pager.nextPage = page + 1
+                _hasMore.value = result.size >= DISCUSSION_PAGE_SIZE && newItems.isNotEmpty()
+                updateReadyValue(current + newItems)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _loadMoreError.value = true
+                _sendError.tryEmit(e.toUserMessage())
+            } finally {
+                _loadingMore.value = false
+            }
+        }
+    }
+
+    fun send(
+        text: String,
+        onSent: () -> Unit,
+    ) {
+        if (_sending.value || _actionBusy.value) return
+        _sending.value = true
+        viewModelScope.launch {
+            try {
+                var postedId: String? = null
+                when (scope) {
+                    DiscussionScope.Movie -> postedId = UserApi.discussionPost(targetId, text).id
+                    DiscussionScope.Episode -> UserApi.episodeCommentPost(targetId, text)
+                    DiscussionScope.Cuplix -> UserApi.cuplixCommentPost(targetId, text)
+                }
+                onSent()
+                val refreshed = pager.reloadLoadedPages()
+                updateReadyValue(refreshed)
+                val myUserId = UserSession.userId()
+                val latestId = postedId ?: refreshed.firstOrNull()?.id
+                DiscussionNotificationService.trackCommentedDiscussion(
+                    scope = scope,
+                    targetId = targetId,
+                    title = title,
+                    latestCommentId = latestId,
+                )
+                if (scope == DiscussionScope.Episode) {
+                    val ownCommentId =
+                        postedId?.takeIf(String::isNotBlank)
+                            ?: refreshed
+                                .firstOrNull { item ->
+                                    !item.id.isNullOrBlank() &&
+                                        !myUserId.isNullOrBlank() &&
+                                        item.userId == myUserId
+                                }?.id
+                    if (!ownCommentId.isNullOrBlank()) {
+                        DiscussionNotificationService.trackOwnedOrRepliedComment(
+                            episodeId = targetId,
+                            title = title,
+                            commentId = ownCommentId,
+                        )
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _sendError.tryEmit(e.toUserMessage())
+            } finally {
+                _sending.value = false
+            }
+        }
+    }
+
+    fun react(
+        discussion: UserApi.Discussion,
+        type: String,
+    ) {
+        if (scope != DiscussionScope.Episode) return
+        val id = discussion.id?.takeIf(String::isNotBlank) ?: return
+        if (!reactingIds.add(id)) return
+        val before = (state.value as? UiState.Ready)?.value?.firstOrNull { it.id == id } ?: discussion
+        patchDiscussion(id) { it.withReaction(type) }
+        viewModelScope.launch {
+            try {
+                UserApi.episodeCommentAction(id, type)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                patchDiscussion(id) {
+                    it.copy(
+                        reaction = before.reaction,
+                        likeCount = before.likeCount,
+                        dislikeCount = before.dislikeCount,
+                    )
+                }
+                _sendError.tryEmit(e.toUserMessage())
+            } finally {
+                reactingIds.remove(id)
+            }
+        }
+    }
+
+    private val reactingIds = HashSet<String>()
+
+    private fun patchDiscussion(
+        id: String,
+        transform: (UserApi.Discussion) -> UserApi.Discussion,
+    ) {
+        val current = (state.value as? UiState.Ready)?.value ?: return
+        updateReadyValue(current.map { if (it.id == id) transform(it) else it })
+    }
+
+    private fun UserApi.Discussion.withReaction(type: String): UserApi.Discussion {
+        val old = reaction.orEmpty()
+
+        fun delta(key: String) = (if (type.equals(key, true)) 1 else 0) - (if (old.equals(key, true)) 1 else 0)
+
+        fun String?.addCount(d: Int) = ((this?.toIntOrNull() ?: 0) + d).coerceAtLeast(0).toString()
+        return copy(
+            reaction = type,
+            likeCount = likeCount.addCount(delta("Y")),
+            dislikeCount = dislikeCount.addCount(delta("N")),
+        )
+    }
+
+    fun markViewed(items: List<UserApi.Discussion>) {
+        val newestId = items.firstOrNull()?.id ?: return
+        DiscussionNotificationService.markDiscussionRead(scope, targetId, newestId)
+    }
+
+    fun loadReplies(
+        discussion: UserApi.Discussion,
+        onLoaded: (List<UserApi.Discussion>) -> Unit,
+    ) {
+        if (scope != DiscussionScope.Episode) return
+        val id = discussion.id?.takeIf(String::isNotBlank) ?: return
+        viewModelScope.launch {
+            try {
+                val loaded = UserApi.episodeCommentReplies(id)
+                DiscussionNotificationService.markRepliesRead(id, loaded.firstOrNull()?.id)
+                onLoaded(loaded)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _sendError.tryEmit(e.toUserMessage())
+                onLoaded(emptyList())
+            }
+        }
+    }
+
+    fun reply(
+        discussion: UserApi.Discussion,
+        text: String,
+        onSuccess: () -> Unit,
+    ) {
+        if (scope != DiscussionScope.Episode || text.isBlank()) return
+        val id = discussion.id?.takeIf(String::isNotBlank) ?: return
+        performAction(refreshAfter = true, onSuccess = onSuccess) {
+            UserApi.episodeCommentReply(id, text.trim())
+            val replies = runCatching { UserApi.episodeCommentReplies(id, page = 1) }.getOrNull().orEmpty()
+            val latestReplyId = replies.firstOrNull()?.id
+            val latestThreadId = (state.value as? UiState.Ready)?.value?.firstOrNull()?.id
+            DiscussionNotificationService.trackCommentedDiscussion(
+                scope = scope,
+                targetId = targetId,
+                title = title,
+                latestCommentId = latestThreadId,
+            )
+            DiscussionNotificationService.trackOwnedOrRepliedComment(
+                episodeId = targetId,
+                title = title,
+                commentId = id,
+                latestReplyId = latestReplyId,
+            )
+        }
+    }
+
+    fun edit(
+        discussion: UserApi.Discussion,
+        text: String,
+        onSuccess: () -> Unit,
+    ) {
+        val id = discussion.id?.takeIf(String::isNotBlank) ?: return
+        if (text.isBlank()) return
+        performAction(refreshAfter = true, onSuccess = onSuccess) {
+            when (scope) {
+                DiscussionScope.Movie -> UserApi.discussionEdit(targetId, id, text)
+                DiscussionScope.Episode -> UserApi.episodeCommentEdit(targetId, id, text)
+                DiscussionScope.Cuplix -> UserApi.cuplixCommentEdit(targetId, id, text)
+            }
+        }
+    }
+
+    fun delete(
+        discussion: UserApi.Discussion,
+        onSuccess: () -> Unit,
+    ) {
+        val id = discussion.id?.takeIf(String::isNotBlank) ?: return
+        performAction(refreshAfter = true, onSuccess = onSuccess) {
+            when (scope) {
+                DiscussionScope.Movie -> UserApi.discussionDelete(id)
+                DiscussionScope.Episode -> UserApi.episodeCommentDelete(id)
+                DiscussionScope.Cuplix -> UserApi.cuplixCommentDelete(id)
+            }
+        }
+    }
+
+    fun report(
+        discussion: UserApi.Discussion,
+        onSuccess: () -> Unit,
+    ) {
+        val id = discussion.id?.takeIf(String::isNotBlank) ?: return
+        performAction(refreshAfter = false, onSuccess = onSuccess) {
+            when (scope) {
+                DiscussionScope.Movie -> UserApi.discussionReport(id)
+                DiscussionScope.Episode -> UserApi.episodeCommentReport(id)
+                DiscussionScope.Cuplix -> UserApi.cuplixCommentReport(id)
+            }
+        }
+    }
+
+    fun retryLoadMore() {
+        _loadMoreError.value = false
+        loadMore()
+    }
+
+    private fun reloadLoadedPages() = reloadWith { pager.reloadLoadedPages() }
+
+    private fun performAction(
+        refreshAfter: Boolean,
+        onSuccess: () -> Unit,
+        action: suspend () -> Unit,
+    ) {
+        if (_sending.value || _actionBusy.value) return
+        _actionBusy.value = true
+        viewModelScope.launch {
+            try {
+                action()
+                if (refreshAfter) reloadLoadedPages()
+                onSuccess()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _sendError.tryEmit(e.toUserMessage())
+            } finally {
+                _actionBusy.value = false
+            }
+        }
+    }
+
+    companion object {
+        fun factory(
+            targetId: String,
+            scope: DiscussionScope = DiscussionScope.Movie,
+            title: String? = null,
+        ): ViewModelProvider.Factory =
+            viewModelFactory {
+                initializer {
+                    DiscussionViewModel(targetId, scope, title)
+                }
+            }
+    }
+}

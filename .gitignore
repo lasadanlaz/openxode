@@ -1,0 +1,27 @@
+# Gradle / Kotlin
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Android / IDE
+local.properties
+.idea/
+*.iml
+.externalNativeBuild/
+.cxx/
+captures/
+userHome/
+.navigation/
+
+# Signing, credentials, and generated apps
+*.jks
+*.keystore
+keystore/
+google-services.json
+*.apk
+*.aab
+
+# OS / logs
+.DS_Store
+Thumbs.db
+*.log

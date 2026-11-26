@@ -1,0 +1,248 @@
+package com.uwu.animex.data.local
+
+import android.content.Context
+import com.uwu.animex.core.AppScope
+import com.uwu.animex.data.anilist.AniListTracker
+import com.uwu.animex.data.local.db.AnimeDao
+import com.uwu.animex.data.local.db.AnimeDatabase
+import com.uwu.animex.data.local.db.ProgressEntity
+import com.uwu.animex.data.mal.MalTracker
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+
+object Progress {
+    private const val MAX = 500
+
+    private fun doneAt(): Float = PlayerPrefs.progressPreference.value
+
+    private const val PERSIST_INTERVAL_MS = 4_000L
+
+    data class Watch(
+        val pos: Long = 0,
+        val dur: Long = 0,
+    )
+
+    @Volatile
+    private var dao: AnimeDao? = null
+    private val scope get() = AppScope.io
+    private val persistMutex = Mutex()
+    private val flushWriteMutex = Mutex()
+
+    private val _map = MutableStateFlow<Map<String, Watch>>(emptyMap())
+    val watches: StateFlow<Map<String, Watch>> = _map.asStateFlow()
+
+    private val pending = LinkedHashMap<String, Watch>()
+    private var flushJob: Job? = null
+    private var lastFlushAt = 0L
+
+    fun watchFlow(epId: String?): Flow<Watch?> = _map.map { m -> epId?.let { m[it] } }.distinctUntilChanged()
+
+    fun watchOf(epId: String?): Watch? = epId?.let { _map.value[it] }
+
+    fun fractionOf(w: Watch?): Float {
+        if (w == null || w.dur <= 0) return 0f
+        return (w.pos.toFloat() / w.dur).coerceIn(0f, 1f)
+    }
+
+    fun isDoneWatch(w: Watch?): Boolean = fractionOf(w) >= doneAt()
+
+    @Synchronized
+    fun init(context: Context) {
+        if (dao != null) return
+        val app = context.applicationContext
+        val animeDao = AnimeDatabase.get(app).animeDao()
+        dao = animeDao
+        scope.launch {
+            animeDao.observeProgress().collect { list ->
+                persistMutex.withLock {
+                    val base =
+                        LinkedHashMap<String, Watch>(list.size + pending.size).apply {
+                            list.forEach { e ->
+                                put(e.episodeId, Watch(pos = e.positionMs, dur = e.durationMs))
+                            }
+                            pending.forEach { (id, w) ->
+                                remove(id)
+                                put(id, w)
+                            }
+                        }
+                    _map.value = base
+                }
+            }
+        }
+    }
+
+    fun fraction(epId: String?): Float = fractionOf(watchOf(epId))
+
+    fun resumePosition(epId: String): Long {
+        val w = _map.value[epId] ?: return 0L
+        if (w.dur <= 0 || w.pos < 5_000 || fraction(epId) >= doneAt()) return 0L
+        return w.pos
+    }
+
+    fun isDone(epId: String?): Boolean = fraction(epId) >= doneAt()
+
+    fun markDone(epId: String): Boolean {
+        val dur = watchOf(epId)?.dur?.takeIf { it > 0 } ?: 1L
+        val crossed = save(epId, dur, dur)
+        flush()
+        return crossed
+    }
+
+    private fun putAll(batch: Map<String, Watch>) {
+        if (batch.isEmpty()) return
+        val next = LinkedHashMap(_map.value)
+        batch.forEach { (id, watch) ->
+            next.remove(id)
+            next[id] = watch
+        }
+        while (next.size > MAX) next.remove(next.keys.first())
+        _map.value = next
+        scope.launch {
+            persistMutex.withLock {
+                pending.putAll(batch)
+                scheduleFlushLocked(force = true)
+            }
+        }
+    }
+
+    fun markDone(epIds: Collection<String>) {
+        putAll(
+            epIds.associateWith { id ->
+                val dur = watchOf(id)?.dur?.takeIf { it > 0 } ?: 1L
+                Watch(dur, dur)
+            },
+        )
+    }
+
+    fun markUnwatched(epId: String) {
+        putAll(mapOf(epId to Watch(0L, watchOf(epId)?.dur?.takeIf { it > 0 } ?: 1L)))
+    }
+
+    fun save(
+        epId: String,
+        pos: Long,
+        dur: Long,
+    ): Boolean {
+        if (dur <= 0 || pos < 0) return false
+        val wasDone = isDone(epId)
+        val watch = Watch(pos, dur)
+
+        val next = LinkedHashMap(_map.value)
+        next.remove(epId)
+        next[epId] = watch
+        while (next.size > MAX) next.remove(next.keys.first())
+        _map.value = next
+
+        val crossedDone = !wasDone && pos.toFloat() / dur >= doneAt()
+        scope.launch {
+            persistMutex.withLock {
+                pending[epId] = watch
+                scheduleFlushLocked(force = crossedDone)
+            }
+            if (crossedDone) {
+                MalTracker.episodeWatched(epId)
+                AniListTracker.episodeWatched(epId)
+            }
+        }
+        return crossedDone
+    }
+
+    fun flush() {
+        scope.launch {
+            persistMutex.withLock { scheduleFlushLocked(force = true) }
+        }
+    }
+
+    private fun scheduleFlushLocked(force: Boolean) {
+        if (dao == null) return
+        val now = System.currentTimeMillis()
+        val due = force || now - lastFlushAt >= PERSIST_INTERVAL_MS
+        if (due) {
+            flushJob?.cancel()
+            flushJob = scope.launch { doFlush() }
+            return
+        }
+        if (flushJob?.isActive == true) return
+        val wait = PERSIST_INTERVAL_MS - (now - lastFlushAt)
+        flushJob =
+            scope.launch {
+                delay(wait.coerceAtLeast(0L))
+                persistMutex.withLock {}
+                doFlush()
+            }
+    }
+
+    private suspend fun doFlush() {
+        val activeDao = dao ?: return
+        val currentJob = currentCoroutineContext()[Job]
+        try {
+            flushWriteMutex.withLock {
+                while (true) {
+                    val batch =
+                        persistMutex.withLock {
+                            if (pending.isEmpty()) {
+                                null
+                            } else {
+                                LinkedHashMap(pending).also {
+                                    pending.clear()
+                                    lastFlushAt = System.currentTimeMillis()
+                                }
+                            }
+                        } ?: break
+                    try {
+                        val now = System.currentTimeMillis()
+                        activeDao.upsertProgressAll(
+                            batch.map { (epId, w) ->
+                                ProgressEntity(
+                                    episodeId = epId,
+                                    positionMs = w.pos,
+                                    durationMs = w.dur,
+                                    updatedAt = now,
+                                )
+                            },
+                        )
+                        if (_map.value.size >= MAX) activeDao.trimProgress(MAX)
+                    } catch (e: CancellationException) {
+                        restorePending(batch)
+                        throw e
+                    } catch (e: Exception) {
+                        restorePending(batch)
+                        throw e
+                    }
+                }
+            }
+        } finally {
+            withContext(NonCancellable) {
+                persistMutex.withLock {
+                    if (flushJob === currentJob) {
+                        flushJob = null
+                        if (pending.isNotEmpty()) scheduleFlushLocked(force = false)
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun restorePending(batch: Map<String, Watch>) {
+        withContext(NonCancellable) {
+            persistMutex.withLock {
+                batch.forEach { (epId, watch) ->
+                    if (epId !in pending) pending[epId] = watch
+                }
+            }
+        }
+    }
+}
