@@ -128,7 +128,6 @@ import com.uwu.animex.ui.common.UiState
 import com.uwu.animex.ui.common.floatingTabBarSpace
 import com.uwu.animex.ui.common.hapticClick
 import com.uwu.animex.ui.common.show
-import com.uwu.animex.ui.player.PipHelper
 import com.uwu.animex.ui.theme.rememberAppDarkTheme
 import com.uwu.animex.ui.viewmodel.DiscussionScope
 import com.uwu.animex.ui.viewmodel.DiscussionViewModel
@@ -420,17 +419,10 @@ fun PlayerScreen(
     val appDarkTheme = rememberAppDarkTheme(appearance.mode)
 
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val inPip by PipHelper.inPip.collectAsStateWithLifecycle()
-    val fullscreen = expanded && (isLandscape || inPip)
+    val fullscreen = expanded && isLandscape
     val orientationPref by PlayerPrefs.defaultOrientation.collectAsStateWithLifecycle()
     val miniFloating by PlayerPrefs.miniPlayerFloating.collectAsStateWithLifecycle()
     var manualLock by remember { mutableStateOf<Int?>(null) }
-
-    LaunchedEffect(inPip) {
-        if (inPip && !expanded) {
-            onExpand?.invoke()
-        }
-    }
 
     LaunchedEffect(orientationPref, manualLock, expanded, tvMode) {
         when {
@@ -508,9 +500,6 @@ fun PlayerScreen(
     }
 
     DisposableEffect(Unit) {
-        PipHelper.playerActive = true
-        PipHelper.isPlaying = false
-        PipHelper.updateParams(activity)
         onDispose {
             val controller = activity?.let { WindowCompat.getInsetsController(it.window, it.window.decorView) }
             val sysNight = (ctx.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
@@ -526,7 +515,6 @@ fun PlayerScreen(
                         screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
                     }
             }
-            PipHelper.onPlayerDisposed(activity)
             setFullscreen(activity, false)
             applyPlayerOrientation(activity, false, tvMode)
         }
@@ -587,7 +575,6 @@ fun PlayerScreen(
         }
     }
     LaunchedEffect(fullscreen) { if (!fullscreen) locked = false }
-    LaunchedEffect(fullscreen) { if (fullscreen) PipHelper.updateSourceRect(activity, null) }
 
     var playerRef by remember { mutableStateOf<Player?>(null) }
     var miniPlayWhenReady by remember { mutableStateOf(true) }
@@ -1158,21 +1145,7 @@ fun PlayerScreen(
                         .offset(curVideoX, curVideoY)
                         .size(curVideoW, curVideoH)
                         .clip(RoundedCornerShape(curVideoCorner))
-                        .background(Color.Black)
-                        .onGloballyPositioned {
-                            if (!fullscreen) {
-                                val b = it.boundsInWindow()
-                                PipHelper.updateSourceRect(
-                                    activity,
-                                    android.graphics.Rect(
-                                        b.left.roundToInt(),
-                                        b.top.roundToInt(),
-                                        b.right.roundToInt(),
-                                        b.bottom.roundToInt(),
-                                    ),
-                                )
-                            }
-                        },
+                        .background(Color.Black),
                 ) {
                     if (exoTarget != null) {
                         key(activeEpId, exoTarget.url) {

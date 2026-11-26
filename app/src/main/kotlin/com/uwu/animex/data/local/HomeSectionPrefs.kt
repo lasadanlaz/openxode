@@ -13,7 +13,6 @@ enum class HomeSection(
     val key: String,
     val title: String,
 ) {
-    Cuplix("cuplix", "Cuplix"),
     ContinueWatching("history", "Lanjut Nonton"),
     NewEpisodes("update", "Episode Baru"),
     Hot("hot", "Sedang Hangat"),

@@ -236,20 +236,6 @@ internal object AnimeDatabaseMigrations {
         ),
     )
 
-    private const val CUPLIX_WATCHED_SQL =
-        "CREATE TABLE IF NOT EXISTS `cuplix_watched` (`clipKey` TEXT NOT NULL, `clipJson` TEXT, " +
-            "`watchedAt` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`clipKey`))"
-
-    private const val CUPLIX_WATCHED_INDEX =
-        "CREATE INDEX IF NOT EXISTS `index_cuplix_watched_watchedAt` ON `cuplix_watched` (`watchedAt`)"
-
-    private const val CUPLIX_SAVED_SQL =
-        "CREATE TABLE IF NOT EXISTS `cuplix_saved` (`clipKey` TEXT NOT NULL, `clipJson` TEXT NOT NULL, " +
-            "`savedAt` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`clipKey`))"
-
-    private const val CUPLIX_SAVED_INDEX =
-        "CREATE INDEX IF NOT EXISTS `index_cuplix_saved_savedAt` ON `cuplix_saved` (`savedAt`)"
-
     private const val WATCHED_DISCUSSIONS_SQL =
         "CREATE TABLE IF NOT EXISTS `watched_discussions` (`discussionKey` TEXT NOT NULL, " +
             "`scope` TEXT NOT NULL, `targetId` TEXT NOT NULL, `title` TEXT, `lastSeenCommentId` TEXT, " +
@@ -270,24 +256,28 @@ internal object AnimeDatabaseMigrations {
         "CREATE INDEX IF NOT EXISTS `index_watched_comments_updatedAt` " +
             "ON `watched_comments` (`updatedAt`)"
 
-    val all: Array<Migration> = (1..10)
-        .map { from ->
-            object : Migration(from, 11) {
-                override fun migrate(db: SupportSQLiteDatabase) {
-                    tables.forEach { table -> ensureTableSchema(db, table, forceRebuild = from < 6) }
-                    tables.flatMap { it.indexes }.forEach { db.execSQL(it) }
-                    db.execSQL("DROP TABLE IF EXISTS `cuplix_seen`")
-                    db.execSQL(CUPLIX_WATCHED_SQL)
-                    db.execSQL(CUPLIX_WATCHED_INDEX)
-                    db.execSQL(CUPLIX_SAVED_SQL)
-                    db.execSQL(CUPLIX_SAVED_INDEX)
-                    db.execSQL(WATCHED_DISCUSSIONS_SQL)
-                    db.execSQL(WATCHED_DISCUSSIONS_INDEX)
-                    db.execSQL(WATCHED_COMMENTS_SQL)
-                    db.execSQL(WATCHED_COMMENTS_INDEX)
+    val all: Array<Migration> =
+        (1..10)
+            .map { from ->
+                object : Migration(from, 11) {
+                    override fun migrate(db: SupportSQLiteDatabase) {
+                        tables.forEach { table -> ensureTableSchema(db, table, forceRebuild = from < 6) }
+                        tables.flatMap { it.indexes }.forEach { db.execSQL(it) }
+                        db.execSQL(WATCHED_DISCUSSIONS_SQL)
+                        db.execSQL(WATCHED_DISCUSSIONS_INDEX)
+                        db.execSQL(WATCHED_COMMENTS_SQL)
+                        db.execSQL(WATCHED_COMMENTS_INDEX)
+                    }
                 }
-            }
-        }.toTypedArray()
+            } + listOf(
+                object : Migration(11, 12) {
+                    override fun migrate(db: SupportSQLiteDatabase) {
+                        db.execSQL("DROP TABLE IF EXISTS `cuplix_watched`")
+                        db.execSQL("DROP TABLE IF EXISTS `cuplix_saved`")
+                        db.execSQL("DROP TABLE IF EXISTS `cuplix_seen`")
+                    }
+                },
+            ).toTypedArray()
 
     private fun ensureTableSchema(
         db: SupportSQLiteDatabase,

@@ -57,11 +57,7 @@ object Downloads {
         val quality: String? = null,
         val views: String? = null,
         val favorites: String? = null,
-        val clipStartMs: Long? = null,
-        val clipEndMs: Long? = null,
-    ) {
-        val isClip: Boolean get() = clipStartMs != null
-    }
+    )
 
     data class Item(
         val id: String,
@@ -330,7 +326,6 @@ object Downloads {
             if (root == null || !root.canWrite()) error("Folder unduhan gak bisa diakses. Pilih ulang foldernya ya.")
             val item = _items.value[id] ?: return
             when {
-                item.meta.isClip -> clip(ctx, id, root)
                 ".m3u8" in item.url.lowercase() -> hls(ctx, id, root)
                 else -> progressive(ctx, id, root)
             }
@@ -344,13 +339,7 @@ object Downloads {
     }
 
     private fun baseName(item: Item): String {
-        val raw =
-            if (item.meta.isClip) {
-                val tag = item.id.takeLast(6)
-                "${item.meta.movieTitle.orEmpty()} - Cuplix ${item.meta.epIndex.orEmpty()} $tag".trim()
-            } else {
-                "${item.meta.movieTitle.orEmpty()} - Ep ${item.meta.epIndex.orEmpty()}".trim()
-            }
+        val raw = "${item.meta.movieTitle.orEmpty()} - Ep ${item.meta.epIndex.orEmpty()}".trim()
         val clean = raw.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim()
         return clean.ifBlank { item.id }
     }
@@ -460,28 +449,6 @@ object Downloads {
                     if (total > 0 && written < total) error("Unduhan putus di tengah jalan")
                 }
             }
-        }
-    }
-
-    private suspend fun clip(
-        ctx: Context,
-        id: String,
-        root: DocumentFile,
-    ) {
-        val item = _items.value[id] ?: return
-        val start = item.meta.clipStartMs ?: 0L
-        val end = item.meta.clipEndMs ?: return
-        val temp = File(ctx.cacheDir, "cuplix_${id.replace(Regex("[^A-Za-z0-9]"), "_")}.mp4")
-        try {
-            CuplixClipExport.export(ctx, item.url, start, end, temp) { percent ->
-                progress(id, temp.length(), percent * 0.95f)
-            }
-            val (doc, _) = docFor(ctx, root, item, "video/mp4")
-            val out = openStreamForWrite(ctx, doc.uri, append = false)
-            out.use { o -> temp.inputStream().use { it.copyTo(o, 64 * 1024) } }
-            progress(id, temp.length(), 100f)
-        } finally {
-            temp.delete()
         }
     }
 

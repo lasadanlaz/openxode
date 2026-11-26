@@ -3,8 +3,6 @@ package com.uwu.animex.data.local
 import android.content.Context
 import androidx.compose.ui.graphics.Color
 import com.uwu.animex.core.storage.PrefKeys
-import com.uwu.animex.ui.background.BackgroundType
-import com.uwu.animex.ui.background.RandomInterval
 import com.uwu.animex.ui.theme.COLOR_ANIM_DEFAULT_MS
 import com.uwu.animex.ui.theme.FONT_SCALE_DEFAULT
 import com.uwu.animex.ui.theme.HOME_CARD_SCALE_DEFAULT
@@ -190,10 +188,6 @@ data class AppearanceSettings(
     val compactNumbers: Boolean = false,
     val hideStats: Boolean = false,
     val hapticsEnabled: Boolean = true,
-    val backgroundType: BackgroundType = BackgroundType.NONE,
-    val backgroundParallax: Boolean = true,
-    val randomInterval: RandomInterval = RandomInterval.ON_LAUNCH,
-    val seasonalThemes: Boolean = true,
 )
 
 val AppearanceSettings.seedColor: Color
@@ -253,16 +247,6 @@ object Appearance {
                 compactNumbers = p.getBoolean(PrefKeys.Appearance.COMPACT_NUMBERS, d.compactNumbers),
                 hideStats = p.getBoolean(PrefKeys.Appearance.HIDE_STATS, d.hideStats),
                 hapticsEnabled = p.getBoolean(PrefKeys.Appearance.HAPTICS, d.hapticsEnabled),
-                backgroundType =
-                    runCatching {
-                        BackgroundType.valueOf(p.getString(PrefKeys.Appearance.BACKGROUND_TYPE, null).orEmpty())
-                    }.getOrDefault(d.backgroundType),
-                backgroundParallax = p.getBoolean(PrefKeys.Appearance.BACKGROUND_PARALLAX, d.backgroundParallax),
-                randomInterval =
-                    runCatching {
-                        RandomInterval.valueOf(p.getString(PrefKeys.Appearance.RANDOM_INTERVAL, null).orEmpty())
-                    }.getOrDefault(d.randomInterval),
-                seasonalThemes = p.getBoolean(PrefKeys.Appearance.SEASONAL_THEMES, d.seasonalThemes),
             )
     }
 
@@ -313,32 +297,6 @@ object Appearance {
 
     fun setHapticsEnabled(enabled: Boolean) = update { it.copy(hapticsEnabled = enabled) }
 
-    fun setBackgroundType(type: BackgroundType) = update { it.copy(backgroundType = type) }
-
-    fun setBackgroundParallax(enabled: Boolean) = update { it.copy(backgroundParallax = enabled) }
-
-    fun setRandomInterval(interval: RandomInterval) = update { it.copy(randomInterval = interval) }
-
-    fun setSeasonalThemes(enabled: Boolean) = update { it.copy(seasonalThemes = enabled) }
-
-    fun lastRandomBackground(): String? =
-        if (::appContext.isInitialized) {
-            appContext
-                .getSharedPreferences(PrefKeys.Appearance.FILE, Context.MODE_PRIVATE)
-                .getString(PrefKeys.Appearance.LAST_RANDOM, null)
-        } else {
-            null
-        }
-
-    fun setLastRandomBackground(name: String) {
-        if (!::appContext.isInitialized) return
-        appContext
-            .getSharedPreferences(PrefKeys.Appearance.FILE, Context.MODE_PRIVATE)
-            .edit()
-            .putString(PrefKeys.Appearance.LAST_RANDOM, name)
-            .apply()
-    }
-
     fun restore(settings: AppearanceSettings) =
         update {
             settings.copy(uiScale = it.uiScale, fontScale = it.fontScale, autoScaleUi = it.autoScaleUi)
@@ -377,10 +335,6 @@ object Appearance {
             .putBoolean(PrefKeys.Appearance.COMPACT_NUMBERS, next.compactNumbers)
             .putBoolean(PrefKeys.Appearance.HIDE_STATS, next.hideStats)
             .putBoolean(PrefKeys.Appearance.HAPTICS, next.hapticsEnabled)
-            .putString(PrefKeys.Appearance.BACKGROUND_TYPE, next.backgroundType.name)
-            .putBoolean(PrefKeys.Appearance.BACKGROUND_PARALLAX, next.backgroundParallax)
-            .putString(PrefKeys.Appearance.RANDOM_INTERVAL, next.randomInterval.name)
-            .putBoolean(PrefKeys.Appearance.SEASONAL_THEMES, next.seasonalThemes)
             .apply()
     }
 }

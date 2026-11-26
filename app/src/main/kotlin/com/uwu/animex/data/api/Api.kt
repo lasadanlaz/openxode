@@ -23,10 +23,6 @@ import com.uwu.animex.core.network.toApiException
 import com.uwu.animex.core.security.NativeCore
 import com.uwu.animex.core.security.Secrets
 import com.uwu.animex.core.storage.PrefKeys
-import com.uwu.animex.data.local.CuplixPrefs
-import com.uwu.animex.data.model.Cuplix
-import com.uwu.animex.data.model.CuplixListData
-import com.uwu.animex.data.model.CuplixNext
 import com.uwu.animex.data.model.Envelope
 import com.uwu.animex.data.model.Episode
 import com.uwu.animex.data.model.EpisodeListData
@@ -63,25 +59,9 @@ import java.io.File
 import java.io.IOException
 import java.lang.reflect.Type
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicLong
 
 object Api {
     const val API_LIMIT = 30
-
-    private val CUPLIX_CURSOR_KEYS =
-        listOf(
-            "cursor_new_time",
-            "cursor_new_id",
-            "cursor_likes_count",
-            "cursor_likes_id",
-            "cursor_old_time",
-            "cursor_old_id",
-            "cursor_views_count",
-            "cursor_views_id",
-            "cursor_episode_time_start",
-            "cursor_episode_id",
-            "cursor_episode_index",
-        )
 
     private const val MAX_EPISODE_PAGES = 100
     private const val MAX_OLDEST_FILES = 64
@@ -99,9 +79,6 @@ object Api {
             .callTimeout(GATE_TIMEOUT_S, TimeUnit.SECONDS)
             .build()
     }
-    private val homeCuplixPath: String by lazy { NativeCore.path(NativeCore.HOME_CUPLIX) }
-    private val cuplixScrollPath: String by lazy { NativeCore.path(NativeCore.FYP_SCROLL) }
-    private val cuplixServerPath: String by lazy { NativeCore.path(NativeCore.FYP_SERVER) }
     private val gson = Gson()
     private val absoluteUrlScheme = Regex("^[a-zA-Z][a-zA-Z0-9+.-]*:")
     private val unsafeFileChars = Regex("[^A-Za-z0-9_-]")
@@ -208,15 +185,6 @@ object Api {
 
     private val inflight = HashMap<String, Deferred<String>>()
 
-    private const val HOME_CUPLIX_SORT = "scroll_likes"
-    private const val HOME_CUPLIX_TIMEOUT_MS = 4_000L
-    private val cuplixTokenSeq = AtomicLong(0L)
-
-    private class HomeCuplixPage(
-        val clips: List<Cuplix>,
-        val next: CuplixNext,
-    )
-
     @Volatile
     private var homeMem: HomeData? = null
 
@@ -252,9 +220,6 @@ object Api {
         oldestDir?.listFiles()?.forEach { it.delete() }
         homeMem = null
         homeMemAt = 0L
-        CuplixFeed.clear()
-        CuplixHomeFeed.clear()
-        CuplixAllFeed.clear()
     }
 
     private fun normalizeDomain(raw: String): String = ApiDomainConfig.normalize(raw)
@@ -365,8 +330,6 @@ object Api {
         add(NativeCore.HOME_LIST, CacheKind.HOME)
         add(NativeCore.HOME_SECTION, CacheKind.HOME)
         add(NativeCore.HOME_NEW_EPISODE, CacheKind.HOME)
-        add(NativeCore.HOME_CUPLIX, CacheKind.HOME)
-        add(NativeCore.FYP_SCROLL, CacheKind.HOME)
         add(NativeCore.SCHEDULE, CacheKind.LIST)
         add(NativeCore.EXPLORE_MOVIE, CacheKind.SEARCH)
         add(NativeCore.FIND, CacheKind.SEARCH)
@@ -420,7 +383,7 @@ object Api {
         params: Map<String, String>,
         force: Boolean = false,
     ): String {
-        val volatile = NativeCore.isVolatile(path) || path == cuplixServerPath
+        val volatile = NativeCore.isVolatile(path)
         val key = cacheKey(path, params)
         val ttl = CachePolicy.ttlMs(kindOf(path))
 
@@ -754,30 +717,18 @@ object Api {
         if (cached != null && !force && SystemClock.elapsedRealtime() - homeMemAt < CachePolicy.ttlMs(CacheKind.HOME)) {
             return cached
         }
-        val (listResult, cuplixPage) =
-            coroutineScope {
-                val cuplixJob = async { fetchHomeCuplix(force) }
-                val list =
-                    runSuspendCatching {
-                        getData(
-                            NativeCore.path(NativeCore.HOME_LIST),
-                            mapOf(
-                                "limit" to "$API_LIMIT",
-                            ),
-                            force,
-                        )
-                    }
-                val page =
-                    if (list.getOrNull() != null) {
-                        cuplixJob.await()
-                    } else {
-                        cuplixJob.cancel()
-                        null
-                    }
-                list to page
+        val result =
+            runSuspendCatching {
+                getData(
+                    NativeCore.path(NativeCore.HOME_LIST),
+                    mapOf(
+                        "limit" to "$API_LIMIT",
+                    ),
+                    force,
+                )
             }
         val d =
-            listResult.getOrElse { e ->
+            result.getOrElse { e ->
                 if (cached != null) return cached
                 throw e
             } ?: return cached ?: HomeData()
@@ -799,31 +750,11 @@ object Api {
                     random = d.movies("random"),
                     waiting = d.movies("waiting"),
                     popular = d.movies("popular"),
-                    cuplix = cuplixPage?.clips ?: cached?.cuplix.orEmpty(),
-                    cuplixNext = if (cuplixPage != null) cuplixPage.next else cached?.cuplixNext,
-                    cuplixToken =
-                        if (cuplixPage != null) {
-                            cuplixTokenSeq.incrementAndGet()
-                        } else {
-                            cached?.cuplixToken ?: 0L
-                        },
                 )
             }
         homeMem = h
         homeMemAt = SystemClock.elapsedRealtime()
         return h
-    }
-
-    private suspend fun fetchHomeCuplix(force: Boolean): HomeCuplixPage? {
-        if (!CuplixPrefs.enabled.value) return null
-        return withTimeoutOrNull(HOME_CUPLIX_TIMEOUT_MS) {
-            val scroll = runSuspendCatching { cuplixScroll(sort = HOME_CUPLIX_SORT, force = force) }.getOrNull()
-            if (scroll != null && scroll.clips.isNotEmpty()) {
-                return@withTimeoutOrNull HomeCuplixPage(scroll.clips, CuplixNext(scroll.cursor, scroll.idFyp))
-            }
-            val legacy = runSuspendCatching { homeCuplix(force = force) }.getOrNull().orEmpty()
-            if (legacy.isNotEmpty()) HomeCuplixPage(legacy, CuplixNext(legacy = true)) else null
-        }
     }
 
     suspend fun homeMovies(
@@ -850,125 +781,6 @@ object Api {
             { getData(path, params, force)?.movieArray().orEmpty() },
         )
     }
-
-    suspend fun homeCuplix(
-        force: Boolean = false,
-        page: Int = 1,
-    ): List<Cuplix> {
-        val params =
-            buildMap {
-                put("limit", "$API_LIMIT")
-                if (page > 1) put("page", page.toString())
-            }
-        val data =
-            get<CuplixListData>(
-                homeCuplixPath,
-                CuplixListData::class.java,
-                params,
-                force,
-            )
-        return data?.fyp.orEmpty()
-    }
-
-    data class CuplixPage(
-        val clips: List<Cuplix>,
-        val cursor: Map<String, String>,
-        val idFyp: String = "",
-    )
-
-    suspend fun cuplixScroll(
-        sort: String,
-        cursor: Map<String, String> = emptyMap(),
-        keyIdFyp: String = "",
-        idUserFyp: String = "",
-        movieIds: String = "",
-        force: Boolean = true,
-        limit: Int = API_LIMIT,
-    ): CuplixPage {
-        val params =
-            buildMap {
-                put("limit", limit.coerceAtLeast(1).toString())
-                put("sort", sort)
-                put("key_id_fyp", keyIdFyp)
-                put("id_user_fyp", idUserFyp)
-                put("movie_ids", movieIds)
-                CUPLIX_CURSOR_KEYS.forEach { key -> put(key, cursor[key].orEmpty()) }
-            }
-        val json = fetchCached(cuplixScrollPath, params, force)
-        return withContext(Dispatchers.Default) {
-            val root =
-                try {
-                    JsonParser.parseString(json).asJsonObject
-                } catch (e: JsonParseException) {
-                    invalidateCachedResponse(cuplixScrollPath, params)
-                    throw ApiException.Parse(e)
-                } catch (e: IllegalStateException) {
-                    invalidateCachedResponse(cuplixScrollPath, params)
-                    throw ApiException.Parse(e)
-                }
-            val err = root.get("error")
-            val isError =
-                err != null &&
-                    err.isJsonPrimitive &&
-                    (
-                        (err.asJsonPrimitive.isBoolean && err.asBoolean) ||
-                            err.asJsonPrimitive.isString &&
-                            err.asString.equals("true", ignoreCase = true)
-                    )
-            if (isError) {
-                invalidateCachedResponse(cuplixScrollPath, params)
-                throw ApiException.Remote(root.get("message")?.takeIf { it.isJsonPrimitive }?.asString ?: "API error")
-            }
-            val data = root.get("data")?.takeIf { it.isJsonObject }?.asJsonObject
-            val array = data?.get("fyp")?.takeIf { it.isJsonArray }?.asJsonArray
-            val clips =
-                if (array == null) {
-                    emptyList()
-                } else {
-                    val parsed =
-                        try {
-                            gson.fromJson(array, Array<Cuplix>::class.java)?.toList().orEmpty()
-                        } catch (e: JsonParseException) {
-                            invalidateCachedResponse(cuplixScrollPath, params)
-                            throw ApiException.Parse(e)
-                        }
-                    parsed
-                }
-            val nextCursor =
-                buildMap {
-                    data?.get("cursor")?.takeIf { it.isJsonObject }?.asJsonObject?.entrySet()?.forEach { (k, v) ->
-                        put(
-                            k,
-                            v
-                                .takeIf { it.isJsonPrimitive }
-                                ?.asString
-                                ?.trim()
-                                .orEmpty(),
-                        )
-                    }
-                }
-            val idFyp = data
-                ?.get("id_fyp")
-                ?.takeIf { it.isJsonPrimitive }
-                ?.asString
-                ?.trim()
-                .orEmpty()
-            CuplixPage(clips, nextCursor, idFyp)
-        }
-    }
-
-    suspend fun cuplixServers(clipId: String): List<Server> =
-        get<StreamData>(
-            cuplixServerPath,
-            StreamData::class.java,
-            mapOf("id_fyp" to clipId),
-            force = true,
-        )?.server
-            .orEmpty()
-            .filter { !it.link.isNullOrBlank() }
-            .mapNotNull { server ->
-                UrlSecurity.secureOrNull(server.link)?.let { secureLink -> server.copy(link = secureLink) }
-            }
 
     private fun homeListParams(page: Int): Map<String, String> =
         buildMap {

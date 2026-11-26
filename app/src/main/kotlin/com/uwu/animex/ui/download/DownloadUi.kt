@@ -57,7 +57,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.uwu.animex.data.download.Downloads
 import com.uwu.animex.data.local.History
 import com.uwu.animex.data.model.Movie
-import com.uwu.animex.ui.background.screenContainerColor
 import com.uwu.animex.ui.common.AnimatedEmptyState
 import com.uwu.animex.ui.common.AppDropdownMenu
 import com.uwu.animex.ui.common.AppLoadingIndicator
@@ -207,18 +206,6 @@ private data class DownloadGroup(
     val items: List<Downloads.Item>,
 )
 
-private fun playClipFile(
-    ctx: Context,
-    d: Downloads.Item,
-) {
-    val uri = d.fileUri?.let(Uri::parse) ?: return
-    val intent =
-        Intent(Intent.ACTION_VIEW)
-            .setDataAndType(uri, "video/mp4")
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    runCatching { ctx.startActivity(intent) }
-}
-
 private fun statusLine(
     ctx: Context,
     d: Downloads.Item,
@@ -245,7 +232,7 @@ fun DownloadsPage(
 ) {
     val backdrop = rememberBlurBackdrop()
     Scaffold(
-        containerColor = screenContainerColor(),
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             FloatingTopBar(
                 backdrop = backdrop,
@@ -276,7 +263,7 @@ fun DownloadsScreen(
     val groups =
         remember(downloads) {
             downloads.values
-                .groupBy { if (it.meta.isClip) it.id else it.meta.movieId ?: it.id }
+                .groupBy { it.meta.movieId ?: it.id }
                 .map { (key, items) ->
                     DownloadGroup(key, items.sortedBy { it.meta.epIndex?.toFloatOrNull() ?: Float.MAX_VALUE })
                 }.sortedWith(
@@ -294,9 +281,7 @@ fun DownloadsScreen(
     }
     val ctx = LocalContext.current
     val open: (Downloads.Item) -> Unit = { d ->
-        if (d.meta.isClip) {
-            if (d.status == Downloads.Status.COMPLETED) playClipFile(ctx, d) else d.meta.movieId?.let(onOpen)
-        } else if (d.status == Downloads.Status.COMPLETED) {
+        if (d.status == Downloads.Status.COMPLETED) {
             History.record(
                 Movie(
                     id = d.meta.movieId,
@@ -361,11 +346,7 @@ private fun DownloadCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    if (d.meta.isClip) {
-                        "Cuplix · ${d.meta.epIndex.orEmpty()}"
-                    } else {
-                        "Episode ${d.meta.epIndex.orEmpty()}"
-                    },
+                    "Episode ${d.meta.epIndex.orEmpty()}",
                     color = MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 2.dp),

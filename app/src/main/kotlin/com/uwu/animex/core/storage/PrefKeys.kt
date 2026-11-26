@@ -61,11 +61,6 @@ object PrefKeys {
         const val COMPACT_NUMBERS = "compact_numbers"
         const val HIDE_STATS = "hide_stats"
         const val HAPTICS = "haptics_enabled"
-        const val BACKGROUND_TYPE = "background_type"
-        const val BACKGROUND_PARALLAX = "background_parallax"
-        const val RANDOM_INTERVAL = "random_interval"
-        const val SEASONAL_THEMES = "seasonal_themes"
-        const val LAST_RANDOM = "last_random_background"
     }
 
     object BatteryOptimization {
@@ -76,23 +71,6 @@ object PrefKeys {
     object Bookmarks {
         const val FILE = "bookmarks_meta"
         const val LOCAL_FAVORITES_DROPPED = "local_favorites_dropped"
-    }
-
-    object Cuplix {
-        const val FILE = "cuplix"
-        const val ENABLED = "enabled"
-        const val MUTED = "muted"
-    }
-
-    object CuplixSaved {
-        const val FILE = "cuplix_saved"
-        const val ITEMS = "items"
-    }
-
-    object CuplixWatched {
-        const val FILE = "cuplix_watched"
-        const val KEYS = "keys"
-        const val CLIPS = "clips"
     }
 
     object Downloads {
@@ -171,7 +149,6 @@ object PrefKeys {
         const val LEGACY_REMEMBER_VOLUME = "remember_volume"
         const val BRIGHTNESS_VALUE = "brightness_value"
         const val VOLUME_VALUE = "volume_value"
-        const val ENABLE_PIP = "enable_pip"
         const val AUTOPLAY = "autoplay_enabled"
         const val CONTROLS_TIMEOUT = "controls_timeout_ms"
         const val DISPLAY_VOL_PER = "display_vol_as_per"

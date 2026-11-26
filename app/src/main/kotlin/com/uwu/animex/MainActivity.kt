@@ -22,9 +22,6 @@ import com.uwu.animex.data.anilist.AniList
 import com.uwu.animex.data.download.Downloads
 import com.uwu.animex.data.local.Appearance
 import com.uwu.animex.data.local.Bookmarks
-import com.uwu.animex.data.local.CuplixPrefs
-import com.uwu.animex.data.local.CuplixSaved
-import com.uwu.animex.data.local.CuplixWatched
 import com.uwu.animex.data.local.HomeSectionPrefs
 import com.uwu.animex.data.local.EpisodeAlerts
 import com.uwu.animex.data.local.History
@@ -38,8 +35,6 @@ import com.uwu.animex.data.update.AppUpdate
 import com.uwu.animex.ui.navigation.App
 import com.uwu.animex.ui.navigation.EpisodeLink
 import com.uwu.animex.ui.navigation.NotificationRouter
-import com.uwu.animex.ui.background.BackgroundType
-import com.uwu.animex.ui.player.PipHelper
 import com.uwu.animex.ui.theme.AppTheme
 import com.uwu.animex.ui.theme.rememberAppDarkTheme
 import com.uwu.animex.ui.tv.TvPrefs
@@ -50,10 +45,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         Appearance.init(this)
-        if (Appearance.settings.value.backgroundType != BackgroundType.NONE) {
-            Appearance.setBackgroundType(BackgroundType.NONE)
-        }
-        if (Appearance.settings.value.backgroundParallax) Appearance.setBackgroundParallax(false)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
@@ -64,10 +55,7 @@ class MainActivity : ComponentActivity() {
         SyncSourcePref.init(this)
         TvPrefs.init(this)
         Onboarding.init(this)
-        CuplixPrefs.init(this)
         HomeSectionPrefs.init(this)
-        CuplixSaved.init(this)
-        CuplixWatched.init(this)
         PlayerPrefs.init(this)
         History.init(this)
         Progress.init(this)
@@ -153,18 +141,5 @@ class MainActivity : ComponentActivity() {
         intent.data = null
         if (isMal) Mal.handleRedirect(uri)
         if (isAniList) AniList.handleRedirect(uri)
-    }
-
-    override fun onUserLeaveHint() {
-        super.onUserLeaveHint()
-        PipHelper.onUserLeaveHint(this)
-    }
-
-    override fun onPictureInPictureModeChanged(
-        isInPictureInPictureMode: Boolean,
-        newConfig: android.content.res.Configuration,
-    ) {
-        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        PipHelper.setInPip(isInPictureInPictureMode)
     }
 }
