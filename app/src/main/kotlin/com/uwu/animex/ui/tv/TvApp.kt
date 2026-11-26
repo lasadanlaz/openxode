@@ -4,6 +4,7 @@ package com.uwu.animex.ui.tv
 
 import android.app.Activity
 import android.os.SystemClock
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -120,6 +121,11 @@ fun TvApp() {
     }
 
     BackHandler {
+        Log.d(
+            "TvAppBack",
+            "tab=$tab dialog=$showExitDialog detail=${detailId != null} search=$showSearch " +
+                "settings=$showSettings rail=$railFocused last=$lastBackAt now=${SystemClock.uptimeMillis()}",
+        )
         when {
             showExitDialog -> showExitDialog = false
             MiniPlayerController.expanded -> MiniPlayerController.minimize()
@@ -141,6 +147,7 @@ fun TvApp() {
             tab == TvTab.HOME -> {
                 focusContent()
                 val now = SystemClock.uptimeMillis()
+                Log.d("TvAppBack", "HOME delta=${now - lastBackAt}")
                 if (now - lastBackAt < 2500L) {
                     showExitDialog = true
                     lastBackAt = 0L
