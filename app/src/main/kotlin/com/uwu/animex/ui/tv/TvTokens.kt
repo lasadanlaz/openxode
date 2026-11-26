@@ -85,11 +85,14 @@ internal object TvDimens {
     /** Lebar item rail saat fokus berada di rail (label ditampilkan). */
     val RailWidth = 140.dp
 
-    /** Lebar rail saat fokus berada di konten (hanya ikon). */
-    val RailCollapsedWidth = 82.dp
-    /** Jarak tetap dari rail yang sudah memuat label saat fokus. */
-    val ContentStart = 154.dp
-    val ContentStartExpanded = 250.dp
+    /** Lebar total rail saat fokus di konten (hanya ikon). */
+    val RailCollapsedWidth = 60.dp
+
+    /** Lebar total rail saat fokus di rail (label ditampilkan). */
+    val RailExpandedWidth = 148.dp
+
+    /** Jarak konten dari tepi area konten; rail mendorong area ini saat melebar. */
+    val ContentStart = 12.dp
     val ContentEnd = 28.dp
     val ContentTop = 40.dp
     val ContentBottom = 62.dp

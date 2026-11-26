@@ -165,7 +165,7 @@ fun TvRailItem(
     Row(
         modifier =
             Modifier
-                .height(34.dp)
+                .height(40.dp)
                 .width(if (expanded) TvDimens.RailWidth else 52.dp)
                 .clip(RoundedCornerShape(50))
                 .background(background)
@@ -175,9 +175,9 @@ fun TvRailItem(
         horizontalArrangement = if (expanded) Arrangement.Start else Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = label, tint = content, modifier = Modifier.size(18.dp))
+        Icon(icon, contentDescription = label, tint = content, modifier = Modifier.size(22.dp))
         if (expanded) {
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(12.dp))
             Text(
                 label,
                 color = content,
@@ -216,7 +216,7 @@ fun TvRail(
     Column(
         Modifier
             .fillMaxHeight()
-            .padding(horizontal = 14.dp),
+            .padding(horizontal = 4.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.Start,
     ) {
