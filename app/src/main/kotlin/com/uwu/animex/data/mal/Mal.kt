@@ -132,7 +132,12 @@ object Mal {
         repo.requireLibraryRefresh = true
         _loggedIn.value = true
         notFound.clear()
-        _user.value = data.user
+        _user.value =
+            MalUser(
+                id = data.user.id.toLong(),
+                name = data.user.name,
+                picture = data.user.profilePicture,
+            )
         updateAutoSync(true)
         scope.launch {
             runCatching { refreshUser() }

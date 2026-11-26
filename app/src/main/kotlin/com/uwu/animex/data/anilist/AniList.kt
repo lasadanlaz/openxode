@@ -149,7 +149,12 @@ object AniList {
         repo.requireLibraryRefresh = true
         _loggedIn.value = true
         notFound.clear()
-        _user.value = data.user
+        _user.value =
+            AniListUser(
+                id = data.user.id,
+                name = data.user.name,
+                avatar = data.user.profilePicture,
+            )
         updateAutoSync(true)
         scope.launch {
             runCatching { refreshUser() }
