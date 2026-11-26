@@ -445,14 +445,26 @@ fun TvSearchBar(
     readOnly: Boolean = false,
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
+    val interaction = remember { MutableInteractionSource() }
+    val rowFocused by interaction.collectIsFocusedAsState()
+    var fieldFocused by remember { mutableStateOf(false) }
+    val focused = if (readOnly) rowFocused else fieldFocused
     Row(
         modifier
             .clip(RoundedCornerShape(50))
             .background(TvColors.SurfaceHigh)
-            .border(1.dp, TvColors.Outline, RoundedCornerShape(50))
+            .border(
+                width = if (focused) 3.dp else 1.dp,
+                color = if (focused) TvColors.FocusRing else TvColors.Outline,
+                shape = RoundedCornerShape(50),
+            )
             .then(
                 if (readOnly) {
-                    Modifier.clickable { onSubmit() }
+                    Modifier.clickable(
+                        interactionSource = interaction,
+                        indication = null,
+                        onClick = onSubmit,
+                    )
                 } else {
                     Modifier
                 },
@@ -473,7 +485,10 @@ fun TvSearchBar(
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
-                modifier = Modifier.weight(1f),
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .onFocusChanged { fieldFocused = it.isFocused },
                 singleLine = true,
                 textStyle =
                     TextStyle(
