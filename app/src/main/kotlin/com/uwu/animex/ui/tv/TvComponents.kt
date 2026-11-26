@@ -144,7 +144,6 @@ fun TvRailItem(
     label: String,
     icon: ImageVector,
     selected: Boolean,
-    expanded: Boolean,
     enabled: Boolean = true,
     focusRequester: FocusRequester? = null,
     onFocus: (Boolean) -> Unit = {},
@@ -154,7 +153,8 @@ fun TvRailItem(
     val focused by interaction.collectIsFocusedAsState()
     LaunchedEffect(focused) { onFocus(focused) }
     val colors = LocalTvColors.current
-    val highlighted = enabled && focused
+    val expanded = enabled && focused
+    val highlighted = expanded
     val background = if (highlighted) colors.FocusFill else Color.Transparent
     val content =
         when {
@@ -225,7 +225,6 @@ fun TvRail(
                 label = entry.label,
                 icon = entry.icon,
                 selected = selected == entry.tab,
-                expanded = enabled && focusedTab == entry.tab,
                 enabled = enabled,
                 focusRequester = focusRequesters[entry.tab],
                 onFocus = { focused ->
@@ -242,7 +241,6 @@ fun TvRail(
             label = "Setelan",
             icon = Icons.Outlined.Settings,
             selected = false,
-            expanded = enabled && settingsFocused,
             enabled = enabled,
             onFocus = { focused -> settingsFocused = focused && enabled },
             onClick = { if (enabled) onSettings() },
