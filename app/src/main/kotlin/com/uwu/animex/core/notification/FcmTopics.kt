@@ -20,13 +20,9 @@ object FcmTopicManager {
         if (isAvailable(context)) runCatching { FirebaseMessaging.getInstance() }.getOrNull() else null
 
     fun sync(context: Context) {
-        val app = context.applicationContext
-        val fm = messaging(app) ?: return
-        val s = NotificationPrefs.state.value
-        val updates = s.enabled && s.appUpdates
-
-        fm.setTopic(FcmTopics.APP_STABLE, updates)
-        fm.setTopic(FcmTopics.APP_DEV, updates && s.prereleases)
+        val fm = messaging(context.applicationContext) ?: return
+        fm.setTopic(FcmTopics.APP_STABLE, false)
+        fm.setTopic(FcmTopics.APP_DEV, false)
     }
 
     private fun FirebaseMessaging.setTopic(

@@ -11,7 +11,6 @@ import com.uwu.animex.data.api.MalIdLookup
 import com.uwu.animex.data.api.SimilarRepo
 import com.uwu.animex.data.api.Translator
 import com.uwu.animex.data.local.db.DbMaintenance
-import com.uwu.animex.data.update.AppUpdate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -49,7 +48,6 @@ object AppCache {
             runCatching { ClipMediaCache.clear(app) }
             DohDns.clearAnswers()
             File(app.cacheDir, "updates").deleteRecursively()
-            AppUpdate.onCacheCleared()
 
             (before - (dirSize(app.cacheDir) + Api.oldestEpisodesSizeBytes())).coerceAtLeast(0L)
         }

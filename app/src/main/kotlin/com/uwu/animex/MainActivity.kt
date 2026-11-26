@@ -37,11 +37,9 @@ import com.uwu.animex.data.mal.Mal
 import com.uwu.animex.data.tracker.SyncSourcePref
 import com.uwu.animex.data.update.AppUpdate
 import com.uwu.animex.ui.navigation.App
-import com.uwu.animex.ui.navigation.DiscussionLink
 import com.uwu.animex.ui.navigation.EpisodeLink
 import com.uwu.animex.ui.navigation.NotificationRouter
 import com.uwu.animex.ui.background.BackgroundType
-import com.uwu.animex.ui.viewmodel.DiscussionScope
 import com.uwu.animex.ui.player.PipHelper
 import com.uwu.animex.ui.theme.AppTheme
 import com.uwu.animex.ui.tv.TvPrefs
@@ -139,40 +137,6 @@ class MainActivity : ComponentActivity() {
 
     private fun handleNotificationIntent(intent: Intent?) {
         if (intent == null) return
-        if (intent.getBooleanExtra(AppUpdate.EXTRA_OPEN_UPDATE, false)) {
-            intent.removeExtra(AppUpdate.EXTRA_OPEN_UPDATE)
-            NotificationRouter.pendingOpenUpdate.value = true
-            return
-        }
-        if (intent.getBooleanExtra(AppNotifier.EXTRA_OPEN_NOTIFICATIONS, false)) {
-            intent.removeExtra(AppNotifier.EXTRA_OPEN_NOTIFICATIONS)
-            NotificationRouter.pendingOpenCenter.value = true
-            return
-        }
-        val discussionTargetId = intent.getStringExtra(AppNotifier.EXTRA_OPEN_DISCUSSION_TARGET_ID)
-        if (!discussionTargetId.isNullOrBlank()) {
-            val scopeName = intent.getStringExtra(AppNotifier.EXTRA_OPEN_DISCUSSION_SCOPE)
-            val title = intent.getStringExtra(AppNotifier.EXTRA_OPEN_DISCUSSION_TITLE)?.takeIf(String::isNotBlank)
-            val commentId = intent.getStringExtra(AppNotifier.EXTRA_OPEN_DISCUSSION_COMMENT_ID).orEmpty()
-            val parentId = intent.getStringExtra(AppNotifier.EXTRA_OPEN_DISCUSSION_PARENT_ID)?.takeIf(String::isNotBlank)
-            intent.removeExtra(AppNotifier.EXTRA_OPEN_DISCUSSION_SCOPE)
-            intent.removeExtra(AppNotifier.EXTRA_OPEN_DISCUSSION_TARGET_ID)
-            intent.removeExtra(AppNotifier.EXTRA_OPEN_DISCUSSION_TITLE)
-            intent.removeExtra(AppNotifier.EXTRA_OPEN_DISCUSSION_COMMENT_ID)
-            intent.removeExtra(AppNotifier.EXTRA_OPEN_DISCUSSION_PARENT_ID)
-            val scope =
-                runCatching { DiscussionScope.valueOf(scopeName.orEmpty()) }
-                    .getOrDefault(DiscussionScope.Movie)
-            NotificationRouter.pendingDiscussion.value =
-                DiscussionLink(
-                    scope = scope,
-                    targetId = discussionTargetId,
-                    title = title,
-                    targetCommentId = commentId,
-                    parentCommentId = parentId,
-                )
-            return
-        }
         val id = intent.getStringExtra(AppNotifier.EXTRA_OPEN_DETAIL) ?: return
         intent.removeExtra(AppNotifier.EXTRA_OPEN_DETAIL)
         NotificationRouter.pendingDetail.value = id

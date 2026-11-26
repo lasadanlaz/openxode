@@ -105,8 +105,6 @@ import com.uwu.animex.ui.common.icon
 import com.uwu.animex.ui.common.isLandscape
 import com.uwu.animex.ui.common.label
 import com.uwu.animex.ui.common.show
-import com.uwu.animex.ui.navigation.NotificationRouter
-import com.uwu.animex.ui.onboarding.needsNotificationSetup
 import com.uwu.animex.ui.theme.rememberBlurBackdrop
 import com.uwu.animex.ui.tracker.TrackerEditSheet
 import com.uwu.animex.ui.viewmodel.DetailViewModel
@@ -376,7 +374,6 @@ fun DetailScreen(
                                     snackbar.show(snackScope, "Notif episode baru dimatiin")
                                 } else {
                                     EpisodeAlerts.enable(movie.copy(id = movieId), episodeCount)
-                                    if (needsNotificationSetup(ctx)) NotificationRouter.pendingOpenSetup.value = true
                                     snackbar.show(snackScope, "Nanti kamu dikasih tau kalau ada episode baru")
                                 }
                             },

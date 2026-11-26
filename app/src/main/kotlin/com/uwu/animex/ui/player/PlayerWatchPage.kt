@@ -188,8 +188,6 @@ import com.uwu.animex.ui.detail.shareEpisode
 import com.uwu.animex.ui.discussion.DiscussionRow
 import com.uwu.animex.ui.discussion.ReplyTarget
 import com.uwu.animex.ui.discussion.ThreadState
-import com.uwu.animex.ui.navigation.NotificationRouter
-import com.uwu.animex.ui.onboarding.needsNotificationSetup
 import com.uwu.animex.ui.viewmodel.DiscussionViewModel
 import com.uwu.animex.ui.viewmodel.PlayerEpisodeList
 import com.uwu.animex.ui.viewmodel.PlayerViewModel
@@ -413,7 +411,6 @@ internal fun PlayerWatchPage(
                             snackbar.show(snackScope, "Notifikasi episode baru dimatikan")
                         } else {
                             EpisodeAlerts.enable(m.copy(id = id), episodeList.episodes.size)
-                            if (needsNotificationSetup(ctx)) NotificationRouter.pendingOpenSetup.value = true
                             snackbar.show(snackScope, "Notifikasi episode baru diaktifkan")
                         }
                     },

@@ -1,25 +1,17 @@
 package com.uwu.animex.data.update
 
-import android.Manifest
-import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
-import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.uwu.animex.BuildConfig
-import com.uwu.animex.MainActivity
-import com.uwu.animex.R
 import com.uwu.animex.core.network.NetworkModule
 import com.uwu.animex.core.network.toUserMessage
-import com.uwu.animex.core.notification.AppNotifier
 import com.uwu.animex.core.notification.NotificationPrefs
 import com.uwu.animex.core.storage.PrefKeys
 import kotlinx.coroutines.CancellationException
@@ -37,10 +29,6 @@ object AppUpdate {
     private const val TAG = "AppUpdate"
     private const val REPO = "HatsuneMikuUwU/AnimeX-App"
     private const val RELEASES_URL = "https://api.github.com/repos/$REPO/releases?per_page=10"
-
-    const val CHANNEL_ID = "app_update"
-    const val NOTIFICATION_ID = 7101
-    const val EXTRA_OPEN_UPDATE = "open_app_update"
 
     private val http =
         NetworkModule.client
@@ -104,7 +92,6 @@ object AppUpdate {
 
     fun init(context: Context) {
         appCtx = context.applicationContext
-        ensureChannel(context.applicationContext)
     }
 
     fun skipThisVersion(tag: String) {
@@ -114,26 +101,12 @@ object AppUpdate {
             ?.putString(PrefKeys.AppUpdate.SKIPPED, tag)
             ?.apply()
         _state.value = State.Idle
-        cancelNotification()
     }
 
     private fun skippedVersion(): String? =
         appCtx
             ?.getSharedPreferences(PrefKeys.AppUpdate.FILE, Context.MODE_PRIVATE)
             ?.getString(PrefKeys.AppUpdate.SKIPPED, null)
-
-    private fun notifiedVersion(): String? =
-        appCtx
-            ?.getSharedPreferences(PrefKeys.AppUpdate.FILE, Context.MODE_PRIVATE)
-            ?.getString(PrefKeys.AppUpdate.NOTIFIED, null)
-
-    private fun markNotified(tag: String) {
-        appCtx
-            ?.getSharedPreferences(PrefKeys.AppUpdate.FILE, Context.MODE_PRIVATE)
-            ?.edit()
-            ?.putString(PrefKeys.AppUpdate.NOTIFIED, tag)
-            ?.apply()
-    }
 
     fun isNewer(
         remote: String,
@@ -156,7 +129,6 @@ object AppUpdate {
                 return
             }
             _state.value = State.Available(latest, older)
-            maybeNotify(latest)
         } catch (e: CancellationException) {
             _state.value = State.Idle
             throw e
@@ -164,12 +136,6 @@ object AppUpdate {
             Log.w(TAG, "check failed", e)
             _state.value = State.Error(e.toUserMessage())
         }
-    }
-
-    private fun maybeNotify(release: Release) {
-        val ctx = appCtx ?: return
-        if (release.tag == notifiedVersion()) return
-        if (postNotification(ctx, release)) markNotified(release.tag)
     }
 
     private fun fetchReleases(): Pair<Release?, List<Release>> {
@@ -245,7 +211,6 @@ object AppUpdate {
                     out
                 }
             _state.value = State.Ready(release, file, older)
-            postReadyNotification(context, release)
         } catch (e: CancellationException) {
             _state.value = State.Available(release, older)
             throw e
@@ -295,58 +260,6 @@ object AppUpdate {
             true
         }
 
-    private fun ensureChannel(ctx: Context) = AppNotifier.createChannels(ctx)
-
-    private fun postNotification(
-        ctx: Context,
-        release: Release,
-    ) = AppNotifier.showAppUpdate(ctx, release.tag)
-
-    private fun postReadyNotification(
-        ctx: Context,
-        release: Release,
-    ) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) !=
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            return
-        }
-
-        ensureChannel(ctx)
-        val open =
-            PendingIntent.getActivity(
-                ctx,
-                NOTIFICATION_ID + 1,
-                Intent(ctx, MainActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                    .putExtra(EXTRA_OPEN_UPDATE, true),
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-            )
-        val notif =
-            NotificationCompat
-                .Builder(ctx, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_stat_download)
-                .setContentTitle("Update siap dipasang")
-                .setContentText("v${release.tag.removePrefix("v")} sudah terunduh. Ketuk untuk install.")
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setContentIntent(open)
-                .setAutoCancel(true)
-                .build()
-        NotificationManagerCompat.from(ctx).notify(NOTIFICATION_ID, notif)
-    }
-
-    fun cancelNotification() {
-        val ctx = appCtx ?: return
-        NotificationManagerCompat.from(ctx).cancel(NOTIFICATION_ID)
-    }
-
-    fun onCacheCleared() {
-        if (_state.value is State.Ready) {
-            _state.value = State.Idle
-            cancelNotification()
-        }
-    }
 }
 
 private data class ApkAsset(
