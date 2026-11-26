@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.uwu.animex.data.local.Bookmarks
@@ -41,6 +42,7 @@ private val tvLibraryFilters =
 fun TvLibraryScreen(onOpen: (String) -> Unit) {
     val entries by Bookmarks.entries.collectAsStateWithLifecycle()
     var filterIndex by rememberSaveable { mutableStateOf(0) }
+    val firstChipFocus = remember { FocusRequester() }
     val filter = tvLibraryFilters[filterIndex]
 
     val statusById =
@@ -83,6 +85,7 @@ fun TvLibraryScreen(onOpen: (String) -> Unit) {
                     label = entry.label,
                     selected = filterIndex == index,
                     onClick = { filterIndex = index },
+                    focusRequester = if (index == 0) firstChipFocus else null,
                 )
             }
         }

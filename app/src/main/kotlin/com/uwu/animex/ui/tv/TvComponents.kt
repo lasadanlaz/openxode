@@ -589,9 +589,11 @@ fun TvChip(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
+    focusRequester: FocusRequester? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
+    LaunchedEffect(focusRequester) { focusRequester?.requestFocus() }
     val colors = LocalTvColors.current
     val background =
         when {
@@ -609,6 +611,7 @@ fun TvChip(
         Modifier
             .clip(RoundedCornerShape(50))
             .background(background)
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .then(
                 if (focused && !selected) {

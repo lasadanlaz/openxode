@@ -9,6 +9,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.Explore
@@ -26,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.uwu.animex.data.local.Appearance
 import com.uwu.animex.ui.navigation.NotificationRouter
@@ -60,10 +63,12 @@ fun TvApp() {
     val railEnabled = detailId == null && !showSearch && !showSettings && !MiniPlayerController.expanded
 
     fun focusContent(target: TvTab = tab) {
-        if (target == TvTab.HOME || target == TvTab.SEARCH) {
-            homeListFocus.requestFocus()
-        } else {
-            contentFocus.requestFocus()
+        runCatching {
+            if (target == TvTab.HOME || target == TvTab.SEARCH) {
+                homeListFocus.requestFocus()
+            } else {
+                contentFocus.requestFocus()
+            }
         }
     }
 
@@ -115,12 +120,17 @@ fun TvApp() {
         Box(Modifier.fillMaxSize().background(LocalTvColors.current.Background)) {
             TvBackdrop(style = backdrop)
 
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .focusable()
-                    .focusRequester(contentFocus),
-            ) {
+            Box(Modifier.fillMaxSize()) {
+                // Tiny focus anchor at the content edge. Keeps LEFT navigation able to
+                // reach the rail (a full-screen focusable Box would overlap it and trap focus).
+                Box(
+                    Modifier
+                        .align(Alignment.CenterStart)
+                        .offset(x = TvDimens.ContentStart)
+                        .size(1.dp)
+                        .focusable()
+                        .focusRequester(contentFocus),
+                )
                 val openDetail: (String) -> Unit = { id -> if (id.isNotBlank()) detailId = id }
                 val openSearch: (String) -> Unit = { query ->
                     searchQuery = query

@@ -17,6 +17,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -35,6 +36,7 @@ fun TvScheduleScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var selected by rememberSaveable { mutableStateOf(todayIndex()) }
+    val firstChipFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { viewModel.revalidate() }
 
     Column(
@@ -63,6 +65,7 @@ fun TvScheduleScreen(
                     label = day.lowercase().replaceFirstChar { it.uppercase() },
                     selected = selected == index,
                     onClick = { selected = index },
+                    focusRequester = if (index == 0) firstChipFocus else null,
                 )
             }
         }

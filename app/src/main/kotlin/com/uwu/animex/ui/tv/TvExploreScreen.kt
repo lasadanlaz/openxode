@@ -19,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -61,6 +62,7 @@ fun TvExploreScreen(
     LaunchedEffect(Unit) { viewModel.revalidate() }
 
     var kindIndex by rememberSaveable { mutableStateOf(0) }
+    val firstChipFocus = remember { FocusRequester() }
     val kind = tvExploreKinds[kindIndex]
     var selectedItemId by remember(kind.key) { mutableStateOf<String?>(null) }
     var movies by remember { mutableStateOf<List<Movie>>(emptyList()) }
@@ -126,6 +128,7 @@ fun TvExploreScreen(
                     label = entry.label,
                     selected = kindIndex == index,
                     onClick = { kindIndex = index },
+                    focusRequester = if (index == 0) firstChipFocus else null,
                 )
             }
         }
