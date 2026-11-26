@@ -238,6 +238,18 @@ internal fun EpisodePanel(
         }
     val listState = rememberLazyListState()
     val episodeFocus = remember { FocusRequester() }
+    val focusEpisodeIndex =
+        remember(episodes, currentEpId, currentIndex) {
+            episodes
+                .indexOfFirst { it.id == currentEpId }
+                .takeIf { it >= 0 }
+                ?: currentIndex
+                    ?.trim()
+                    ?.let { idx ->
+                        episodes.indexOfFirst { it.index?.trim() == idx }.takeIf { it >= 0 }
+                    }
+                ?: 0
+        }
     val nearEnd by remember {
         derivedStateOf {
             val info = listState.layoutInfo
@@ -251,15 +263,12 @@ internal fun EpisodePanel(
         }
     }
     var scrolledToCurrent by remember(currentEpId) { mutableStateOf(false) }
-    LaunchedEffect(episodes.size, currentEpId) {
+    LaunchedEffect(episodes.size, focusEpisodeIndex) {
         if (scrolledToCurrent) return@LaunchedEffect
-        val i = episodes.indexOfFirst { it.id == currentEpId }
-        if (i >= 0) {
-            scrolledToCurrent = true
-            if (i > 0) listState.scrollToItem(i)
-        }
+        scrolledToCurrent = true
+        if (focusEpisodeIndex > 0) listState.scrollToItem(focusEpisodeIndex)
     }
-    LaunchedEffect(tvMode, episodes.size, currentEpId) {
+    LaunchedEffect(tvMode, episodes.size, focusEpisodeIndex) {
         if (!tvMode || episodes.isEmpty()) return@LaunchedEffect
         delay(80L)
         runCatching { episodeFocus.requestFocus() }
@@ -302,7 +311,7 @@ internal fun EpisodePanel(
                     ErrorState(error, { viewModel.openEpisodeList(movieId, currentIndex, force = true) }, Color.White)
                 else ->
                     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                        itemsIndexed(episodes, key = { i, e -> e.id ?: "i$i" }) { _, ep ->
+                        itemsIndexed(episodes, key = { i, e -> e.id ?: "i$i" }) { i, ep ->
                             val current = ep.id == currentEpId
                             val interaction = remember { MutableInteractionSource() }
                             val thumb =
@@ -314,7 +323,7 @@ internal fun EpisodePanel(
                                     .fillMaxWidth()
                                     .padding(horizontal = 8.dp, vertical = 2.dp)
                                     .then(
-                                        if (current) {
+                                        if (i == focusEpisodeIndex) {
                                             Modifier.focusRequester(episodeFocus)
                                         } else {
                                             Modifier
