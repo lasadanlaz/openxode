@@ -894,6 +894,8 @@ fun PlayerScreen(
                 compact = !fullscreen,
                 minimized = isMinimizedVisual,
                 tvMode = tvMode,
+                panelsOpen =
+                    showDialog || showEpisodes || showSpeed || showSleep || showComments || showDescription,
                 onToggleFullscreen = { toggleFullscreen() },
                 onPullDownDelta =
                     if (supportsMiniPlayer && !fullscreen) {
